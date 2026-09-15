@@ -28,42 +28,43 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
       ? "drink list, foto e contatti"
       : "menu, foto e contatti";
   const starts = [
-    "ciao",
-    "ciao, una cosa al volo",
-    "ciao, vi scrivo al volo",
-    "ciao, ho dato un’occhiata a quello che fate",
+    "ciao, sono capitato sulla vostra pagina e mi è venuta un'idea",
+    "ciao, stavo guardando un po' il vostro profilo",
+    "ciao, ho visto il vostro menu online",
+    "ciao, mi sono fermato a guardare le foto del locale",
   ];
   const ctas = [
-    "se vi va, vi mando due idee",
     "se vi può servire, ci sentiamo",
     "se vi interessa, ne parliamo",
-    "se vi va, vi spiego in due righe",
+    "se vi va, ci possiamo sentire",
+    "volevo capire se poteva interessarvi",
   ];
   const evidence = l.analysis.evidence;
-  let observation = own
-    ? `ho guardato il sito di ${l.name}`
-    : `ho visto la pagina di ${l.name}`;
+  const opening = starts[index % starts.length];
+  let observation = opening;
   if (evidence.some((e) => e.kind === "menu_ads" && e.confidence >= 0.7))
-    observation += ": nel menu online compaiono elementi pubblicitari";
+    observation +=
+      ": ho visto anche il menu online e secondo me la pubblicità intorno lo fa sembrare un po' meno vostro";
   else if (own && evidence.some((e) => e.kind === "sparse"))
-    observation += ": i contenuti sono piuttosto essenziali";
+    observation +=
+      " e il sito mi sembra un po' vuoto rispetto alle cose che fate";
   else if (l.analysis.events_relevant && p.events)
-    observation += ": ho letto delle vostre serate";
+    observation += ", e ho visto che fate anche serate";
   else if (
     !own &&
     evidence.some((e) => e.kind === "no_website" && e.confidence >= 0.7)
   )
     observation +=
-      ": non ho trovato un sito vostro tra le informazioni pubblicate";
+      ": tra le informazioni pubblicate non ho trovato un sito vostro";
   else if (
     !own &&
     evidence.some((e) => e.kind === "website_missing" && e.confidence >= 0.7)
   )
-    observation +=
-      ": su Google non vedo un sito vostro, ma solo la scheda del locale";
+    observation += ": su Google non ho visto un sito vostro, solo la scheda";
+  else observation += ", e mi è venuta una cosa in mente";
   let pitch = own
-    ? `un ${p.restyling ? "restyling" : "sistemata"} del sito lo renderebbe più semplice da usare e aggiornare, soprattutto per ${products}`
-    : `una pagina semplice con ${products} può farvi comodo`;
+    ? `secondo me con un ${p.restyling ? "restyling" : "sistemata"} semplice si potrebbe rendere il sito più completo, soprattutto per ${products}`
+    : `secondo me per il tipo di locale che avete ci starebbe bene un sito vostro, semplice ma fatto bene, con ${products} tutti nello stesso posto`;
   if (
     p.events &&
     l.analysis.events_relevant &&
@@ -72,22 +73,20 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
     pitch += " e le prossime serate";
   else if (p.qr && !food && l.menu_status !== "unknown" && index % 2 === 0)
     pitch += ", anche con un QR per il menu";
-  const intro =
-    p.tone === "neutro"
-      ? "buongiorno"
-      : p.tone === "molto casual"
-        ? starts[index % starts.length]
-        : ["ciao", "ciao, vi scrivo perché"][index % 2];
-  const identity = own
-    ? `faccio siti per locali${p.local ? " della zona" : ""}`
-    : "faccio siti per locali";
-  const greeting = p.tone === "neutro" ? "Buongiorno, come state?" : "Ciao, come va?";
-  return `${greeting}\n${intro}, ${observation}.\n${pitch}.\n${identity}, ${ctas[index % ctas.length]}`.replace(
+  const identity = p.local
+    ? "io mi occupo proprio di siti per locali della zona"
+    : "io mi occupo proprio di siti per locali";
+  return `${observation}.\n\n${pitch}. ${identity}, ${ctas[index % ctas.length]}`.replace(
     /,,/g,
     ",",
   );
 }
 export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
+  const trimmed = text.trim();
+  if (!/^ciao\b/i.test(trimmed)) return false;
+  if (/^ciao,?\s*come va|^(?:salve|buongiorno|gentile)\b/i.test(trimmed))
+    return false;
+  if (trimmed.split(/\n\s*\n/).filter(Boolean).length > 3) return false;
   if (
     !/(realizzo|mi occupo|faccio|creo|costruisco|sviluppo)/i.test(text) ||
     !/sit[oi]/i.test(text)

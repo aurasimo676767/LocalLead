@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
         .from("messages")
         .select("text")
         .order("created_at", { ascending: false })
-        .limit(10);
+        .limit(15);
       if (error) throw new Error("Cronologia messaggi non disponibile");
       const generated = await generateOutreachMessage(
         lead,

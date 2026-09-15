@@ -173,7 +173,7 @@ export function WorkspaceProvider({
         const recent = current.leads
           .flatMap((x) => x.messages)
           .sort((a, b) => b.created_at.localeCompare(a.created_at))
-          .slice(0, 10)
+          .slice(0, 15)
           .map((m) => m.text);
         const variants = Array.from({ length: 8 }, (_, i) =>
           fallbackMessage(

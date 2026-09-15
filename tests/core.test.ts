@@ -6,6 +6,7 @@ import {
   publicIp,
   whatsappUrl,
   whatsappCheckUrl,
+  isLandlinePhone,
   dedupKeys,
 } from "@/lib/utils";
 import { newLead, defaultPreferences } from "@/lib/model";
@@ -31,6 +32,10 @@ describe("phone normalization", () => {
   ])("%s => %s", (input, output) => expect(normalizePhone(input)).toBe(output));
   it("keeps a non-Italian international number", () =>
     expect(normalizePhone("+1 202 555 0123")).toBe("+12025550123"));
+  it("recognizes Italian landlines separately from mobiles", () => {
+    expect(isLandlinePhone("0932 123456")).toBe(true);
+    expect(isLandlinePhone("333 123 4567")).toBe(false);
+  });
 });
 describe("deduplication", () => {
   it("prioritizes place ID over phone and includes archived leads", () => {
@@ -167,6 +172,12 @@ describe("messages and contacts", () => {
         "ciao & caffè",
       ),
     ).toContain("text=ciao%20%26%20caff%C3%A8");
+    expect(
+      whatsappCheckUrl(
+        { ...l, phone: "0932 123456" },
+        "ciao",
+      ),
+    ).toBe("");
     expect(
       whatsappUrl(
         {

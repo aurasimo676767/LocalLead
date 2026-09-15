@@ -1,7 +1,7 @@
 import "server-only";
 import { demoLeads } from "../../demo";
 import { newLead, now, uid, type Lead } from "../../model";
-import { normalizePhone, safeUrl } from "../../utils";
+import { isLandlinePhone, normalizePhone, safeUrl } from "../../utils";
 import { providerJson } from "../http";
 export type SearchInput = {
   city: string;
@@ -151,7 +151,10 @@ export class GooglePlacesProvider implements LocalBusinessProvider {
           },
         )) as { places?: Place[]; nextPageToken?: string };
         for (const p of json.places || [])
-          if (!found.some((l) => l.place_id === p.id)) {
+          if (
+            !isLandlinePhone(p.internationalPhoneNumber || "") &&
+            !found.some((l) => l.place_id === p.id)
+          ) {
             found.push(this.map(p, category, input.city));
             count++;
           }

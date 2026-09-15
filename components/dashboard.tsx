@@ -14,9 +14,12 @@ import {
 import { useWorkspace } from "./workspace";
 import { PageHeading, LeadCard, LeadTable } from "./ui";
 import { contactable, contacted } from "@/lib/model";
+import { isLandlinePhone } from "@/lib/utils";
 export function Dashboard() {
   const { leads } = useWorkspace();
-  const available = leads.filter((l) => contactable(l) && !contacted(l));
+  const available = leads.filter(
+    (l) => !isLandlinePhone(l.phone) && contactable(l) && !contacted(l),
+  );
   const best = [...available]
     .sort((a, b) => b.lead_score - a.lead_score)
     .slice(0, 3);

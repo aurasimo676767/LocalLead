@@ -1133,6 +1133,24 @@ code {
   font-size: 11px;
   margin-bottom: 20px;
 }
+.detail-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.detail-nav .back-link {
+  margin-bottom: 0;
+}
+.detail-nav-actions {
+  display: flex;
+  gap: 8px;
+}
+.disabled-link {
+  opacity: 0.45;
+  pointer-events: none;
+}
 .detail-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 310px;

@@ -5,7 +5,7 @@ import {
   whatsappConfidences,
   websiteStatuses,
 } from "./model";
-import { safeUrl, hostIs, normalizePhone } from "./utils";
+import { safeUrl, hostIs, normalizePhone, isLandlinePhone } from "./utils";
 const url = z
   .string()
   .max(2048)
@@ -23,6 +23,10 @@ const fieldsSchema = z.object({
     .string()
     .max(40)
     .refine((v) => !v || !!normalizePhone(v), "Numero non valido")
+    .refine(
+      (v) => !v || !isLandlinePhone(v),
+      "I numeri fissi non vengono importati come lead contattabili",
+    )
     .transform((v) => normalizePhone(v)),
   website_url: url,
   facebook_url: url.refine(

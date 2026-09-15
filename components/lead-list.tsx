@@ -5,6 +5,7 @@ import { Search, Upload, Plus } from "lucide-react";
 import { useWorkspace } from "./workspace";
 import { PageHeading, LeadTable, Field } from "./ui";
 import { categories, statuses, statusLabels, contacted } from "@/lib/model";
+import { isLandlinePhone } from "@/lib/utils";
 import { fitsFilter } from "@/lib/scoring";
 export function LeadList({
   mode = "all",
@@ -24,6 +25,8 @@ export function LeadList({
   const filtered = leads
     .filter(
       (l) =>
+        !isLandlinePhone(l.phone) &&
+        (mode !== "all" || !contacted(l)) &&
         (mode !== "contacted" || contacted(l)) &&
         (mode !== "archive" ||
           l.do_not_contact ||

@@ -15,6 +15,8 @@ import {
   ExternalLink,
   X,
   Camera,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useWorkspace, useTask } from "./workspace";
 import { PageHeading, Score, Status, ErrorText, Field } from "./ui";
@@ -85,7 +87,7 @@ export function LeadDetail({ id }: { id: string }) {
   );
 }
 function Detail({ lead: l }: { lead: Lead }) {
-  const { command, notify, config, preferences } = useWorkspace();
+  const { command, notify, config, preferences, leads } = useWorkspace();
   const task = useTask();
   const [text, setText] = useState(
     () => l.messages.at(-1)?.text || fallbackMessage(l, preferences),
@@ -105,6 +107,17 @@ function Detail({ lead: l }: { lead: Lead }) {
   const canWa = !blocked && !!whatsappUrl(l, contactDraft) && !l.is_demo;
   const canCheckWa = !blocked && !!whatsappCheckUrl(l, contactDraft) && !l.is_demo;
   const hasFb = !blocked && !!l.facebook_url && !l.is_demo;
+  const navigable = leads.filter(
+    (item) =>
+      !item.do_not_contact &&
+      !["archived", "bad_lead", "not_interested"].includes(item.status),
+  );
+  const position = navigable.findIndex((item) => item.id === l.id);
+  const previous = position > 0 ? navigable[position - 1] : undefined;
+  const next =
+    position >= 0 && position < navigable.length - 1
+      ? navigable[position + 1]
+      : undefined;
   async function saveDraft() {
     if (text.trim() && text !== l.messages.at(-1)?.text)
       await command("save_message", { text }, l.id);
@@ -113,11 +126,51 @@ function Detail({ lead: l }: { lead: Lead }) {
     await navigator.clipboard.writeText(text);
     notify("Messaggio copiato");
   }
+  async function registerWhatsAppVerification() {
+    await saveDraft();
+    await command(
+      "patch",
+      {
+        status: "contacted",
+        channel: "WhatsApp",
+        event_notes: "WhatsApp aperto per verificare il numero",
+      },
+      l.id,
+    );
+    setStatus("contacted");
+    notify("Lead segnato come contattato");
+  }
   return (
     <>
-      <Link href="/leads" className="back-link">
-        <ArrowLeft size={15} /> Tutti i lead
-      </Link>
+      <div className="detail-nav">
+        <Link href="/leads" className="back-link">
+          <ArrowLeft size={15} /> Tutti i lead
+        </Link>
+        <div className="detail-nav-actions">
+          <Link
+            href={previous ? `/leads/${previous.id}` : "#"}
+            className={`button secondary small${previous ? "" : " disabled-link"}`}
+            aria-label="Locale precedente"
+            aria-disabled={!previous}
+            onClick={(event) => {
+              if (!previous) event.preventDefault();
+            }}
+          >
+            <ChevronLeft size={15} /> Precedente
+          </Link>
+          <Link
+            href={next ? `/leads/${next.id}` : "#"}
+            className={`button secondary small${next ? "" : " disabled-link"}`}
+            aria-label="Locale successivo"
+            aria-disabled={!next}
+            onClick={(event) => {
+              if (!next) event.preventDefault();
+            }}
+          >
+            Successivo <ChevronRight size={15} />
+          </Link>
+        </div>
+      </div>
       <PageHeading
         eyebrow={`${l.category.toUpperCase()} · ${l.city.toUpperCase()}`}
         title={l.name}
@@ -285,8 +338,11 @@ function Detail({ lead: l }: { lead: Lead }) {
               {l.whatsapp_confidence === "uncertain" && (
                 <button
                   className="button secondary"
-                disabled={!canCheckWa || task.busy}
-                  onClick={() => setConfirm(true)}
+                  disabled={!canCheckWa || task.busy}
+                  onClick={() => {
+                    setConfirm(true);
+                    void task.run(registerWhatsAppVerification);
+                  }}
                 >
                   <MessageCircle size={17} /> Verifica su WhatsApp
                 </button>

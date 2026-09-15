@@ -13,6 +13,11 @@ export function normalizePhone(value: string): string {
   const parsed = parsePhoneNumberFromString(cleaned, "IT");
   return parsed?.isValid() ? parsed.number : "";
 }
+export function isLandlinePhone(value: string): boolean {
+  const cleaned = value.trim().replace(/^00/, "+");
+  const parsed = parsePhoneNumberFromString(cleaned, "IT");
+  return parsed?.isValid() === true && parsed.getType() === "FIXED_LINE";
+}
 export function publicIp(address: string) {
   try {
     const ip = ipaddr.process(address);
@@ -122,6 +127,7 @@ export function whatsappUrl(lead: Lead, message: string) {
   const number = normalizePhone(lead.phone);
   if (
     !number ||
+    isLandlinePhone(number) ||
     !contactable(lead) ||
     !["confirmed_business", "likely_business"].includes(
       lead.whatsapp_confidence,
@@ -132,6 +138,6 @@ export function whatsappUrl(lead: Lead, message: string) {
 }
 export function whatsappCheckUrl(lead: Lead, message: string) {
   const number = normalizePhone(lead.phone);
-  if (!number || !contactable(lead)) return "";
+  if (!number || isLandlinePhone(number) || !contactable(lead)) return "";
   return `https://wa.me/${number.slice(1)}?text=${encodeURIComponent(message)}`;
 }

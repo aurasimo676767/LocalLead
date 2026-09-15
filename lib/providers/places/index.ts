@@ -45,12 +45,12 @@ export class GooglePlacesProvider implements LocalBusinessProvider {
     const l = newLead({
       name: p.displayName?.text || "Attività senza nome",
       city:
-        p.addressComponents?.find((c) => c.types.includes("locality"))
+        p.addressComponents?.find((c) => c.types?.includes("locality"))
           ?.longText || city,
       category,
       address: p.formattedAddress || "",
       postal_code:
-        p.addressComponents?.find((c) => c.types.includes("postal_code"))
+        p.addressComponents?.find((c) => c.types?.includes("postal_code"))
           ?.longText || "",
       phone: normalizePhone(p.internationalPhoneNumber || ""),
       website_url: safeUrl(p.websiteUri || ""),

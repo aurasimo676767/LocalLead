@@ -11,6 +11,7 @@ import {
   type Workspace,
   type PublicConfig,
   type Lead,
+  contactable,
   defaultPreferences,
   newLead,
   now,
@@ -21,7 +22,7 @@ import { demoWorkspace, demoLeads } from "@/lib/demo";
 import { manualSources, patchLead } from "@/lib/lead-actions";
 import { inputSchema, discoverySchema } from "@/lib/validation";
 import { duplicate } from "@/lib/utils";
-import { scoreLead, worthwhile } from "@/lib/scoring";
+import { scoreLead } from "@/lib/scoring";
 import { fallbackMessage, similarity } from "@/lib/messaging";
 type Result = {
   lead?: Lead;
@@ -165,7 +166,7 @@ export function WorkspaceProvider({
         }
       }
       if (action === "message") {
-        if (!worthwhile(l))
+        if (!contactable(l))
           throw new Error(
             "Verifica prima un’opportunità concreta e i canali di contatto",
           );

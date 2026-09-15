@@ -1,5 +1,4 @@
-import type { Lead, Preferences } from "../model";
-import { worthwhile } from "../scoring";
+import { contactable, type Lead, type Preferences } from "../model";
 export function similarity(a: string, b: string) {
   const grams = (s: string) => {
     const words = s
@@ -15,7 +14,7 @@ export function similarity(a: string, b: string) {
   return [...x].filter((v) => y.has(v)).length / new Set([...x, ...y]).size;
 }
 export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
-  if (!worthwhile(l)) return "";
+  if (!contactable(l)) return "";
   const own = ["own_website", "broken"].includes(l.website_status);
   const food = [
     "Panificio",

@@ -241,7 +241,7 @@ function Detail({ lead: l }: { lead: Lead }) {
             <div className="button-row">
               <button
                 className="button secondary"
-                disabled={task.busy || !worthwhile(l)}
+                disabled={task.busy || !contactable(l)}
                 onClick={() =>
                   void task.run(async () => {
                     await saveDraft();

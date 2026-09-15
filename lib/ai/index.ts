@@ -2,9 +2,8 @@ import "server-only";
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
-import type { Lead, Preferences } from "../model";
+import { contactable, type Lead, type Preferences } from "../model";
 import { fallbackMessage, messageAllowed, similarity } from "../messaging";
-import { worthwhile } from "../scoring";
 const client = () =>
   new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -81,7 +80,7 @@ export async function generateOutreachMessage(
   prefs: Preferences,
   recent: string[],
 ) {
-  if (!worthwhile(lead))
+  if (!contactable(lead))
     throw new Error(
       "Non ci sono opportunità sufficientemente verificate, oppure il lead è escluso",
     );

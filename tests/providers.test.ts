@@ -101,6 +101,14 @@ describe("provider contracts and conservative enrichment", () => {
       website_url: "https://example.com",
     });
     lead.analysis.analyzed_at = new Date().toISOString();
+    lead.sources.push({
+      id: "cached-analysis",
+      source_type: "website_analysis",
+      url: lead.website_url,
+      confidence: 1,
+      metadata_json: { analysis_version: "reachability-v2" },
+      created_at: new Date().toISOString(),
+    });
     expect(await enrichLead(lead)).toBe(lead);
     expect(mocks.publicHtml).not.toHaveBeenCalled();
   });

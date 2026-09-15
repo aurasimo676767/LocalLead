@@ -11,12 +11,24 @@ import {
   normalizePhone,
 } from "../utils";
 import { scoreLead } from "../scoring";
+const ANALYSIS_VERSION = "reachability-v2";
 export async function enrichLead(input: Lead): Promise<Lead> {
   if (input.is_demo) return scoreLead(input);
   const hours = Number(process.env.ANALYSIS_CACHE_HOURS || 72);
+  const needsWebsiteFetch =
+    !!input.website_url &&
+    !social(input.website_url) &&
+    !externalMenu(input.website_url) &&
+    !delivery(input.website_url);
+  const hasCurrentWebsiteCheck = input.sources.some(
+    (source) =>
+      source.source_type === "website_analysis" &&
+      source.metadata_json.analysis_version === ANALYSIS_VERSION,
+  );
   if (
     input.analysis.analyzed_at &&
-    Date.now() - Date.parse(input.analysis.analyzed_at) < hours * 3600_000
+    Date.now() - Date.parse(input.analysis.analyzed_at) < hours * 3600_000 &&
+    (!needsWebsiteFetch || hasCurrentWebsiteCheck)
   )
     return input;
   const l: Lead = structuredClone(input);
@@ -141,7 +153,11 @@ export async function enrichLead(input: Lead): Promise<Lead> {
           source_type: "website_analysis",
           url: page.url,
           confidence: 0.85,
-          metadata_json: { http_status: page.status, checked_at: now() },
+          metadata_json: {
+            http_status: page.status,
+            checked_at: now(),
+            analysis_version: ANALYSIS_VERSION,
+          },
           created_at: now(),
         });
       } catch {

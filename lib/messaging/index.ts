@@ -95,6 +95,12 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
   if (!/^ciao\b/i.test(trimmed)) return false;
   if (/^ciao,?\s*come va|^(?:salve|buongiorno|gentile)\b/i.test(trimmed))
     return false;
+  if (
+    /punto di riferimento|ottima reputazione|complimenti per le recensioni|valorizzare|presenza online|esperienza digitale|\bsoluzione\b|\bopportunità\b|\bclientela\b|\bprofessionale\b|ottimizzare|senza impegno|con calma|rendere tutto piÃ¹ comodo/i.test(
+      trimmed,
+    )
+  )
+    return false;
   if (trimmed.split(/\n\s*\n/).filter(Boolean).length > 3) return false;
   if (
     !/(realizzo|mi occupo|faccio|creo|costruisco|sviluppo)/i.test(text) ||

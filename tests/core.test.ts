@@ -164,6 +164,18 @@ describe("messages and contacts", () => {
         defaultPreferences,
       ),
     ).toBe(false));
+  it("rejects copywriter compliments and marketing wording", () =>
+    expect(
+      messageAllowed(
+        "ciao " +
+          "siete un punto di riferimento della zona, ho visto le vostre recensioni e posso ottimizzare la presenza online. ".repeat(
+            3,
+          ) +
+          "io mi occupo di siti, se vi interessa ne parliamo",
+        demoLeads()[0],
+        defaultPreferences,
+      ),
+    ).toBe(false));
   it("guards WhatsApp and encodes the draft", () => {
     const l = {
       ...base(),

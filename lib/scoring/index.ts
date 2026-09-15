@@ -12,6 +12,7 @@ export function scoreLead(lead: Lead): Lead {
     ["none", "social_only", "external_page_only"].includes(lead.website_status)
   )
     add("no_website", "Nessun sito proprietario verificato", 30);
+  add("website_missing", "Sito non indicato da Google Places: da verificare", 25);
   if (["poor", "broken"].includes(lead.website_quality))
     add("weak_website", "Sito migliorabile: criticità rilevate", 25);
   add("menu_ads", "Elementi pubblicitari nel menu", 15);
@@ -36,10 +37,10 @@ export function scoreLead(lead: Lead): Lead {
     ["confirmed_business", "likely_business"].includes(
       lead.whatsapp_confidence,
     );
-  if (!reliableContact)
+  if (!reliableContact && (lead.phone || lead.facebook_url || lead.website_url))
     reasons.push({
-      label: "Nessun canale affidabile verificato",
-      points: -20,
+      label: "Canale di contatto da verificare",
+      points: -5,
       evidence_ids: [],
     });
   const verified = ev.filter((e) => e.confidence >= 0.7);
@@ -82,7 +83,10 @@ export function scoreLead(lead: Lead): Lead {
           ) &&
           positive.some((r) =>
             r.evidence_ids.some((id) =>
-              ev.some((e) => e.id === id && e.kind === "no_website"),
+              ev.some(
+                (e) =>
+                  e.id === id && ["no_website", "website_missing"].includes(e.kind),
+              ),
             ),
           )
         ? "Un sito proprietario con le informazioni del locale"
@@ -122,7 +126,7 @@ export const worthwhile = (lead: Lead) =>
   lead.analysis.evidence.some(
     (e) =>
       e.confidence >= 0.7 &&
-      ((e.kind === "no_website" &&
+      (((e.kind === "no_website" || e.kind === "website_missing") &&
         ["none", "social_only", "external_page_only"].includes(
           lead.website_status,
         )) ||

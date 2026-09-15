@@ -21,6 +21,7 @@ import { PageHeading, Score, Status, ErrorText, Field } from "./ui";
 import { LeadForm } from "./lead-form";
 import { statuses, statusLabels, contactable, type Lead } from "@/lib/model";
 import { hotReasons, worthwhile } from "@/lib/scoring";
+import { fallbackMessage } from "@/lib/messaging";
 import { safeUrl, whatsappUrl, whatsappCheckUrl } from "@/lib/utils";
 const labels: Record<string, string> = {
   none: "Assente (verificato)",
@@ -84,7 +85,7 @@ export function LeadDetail({ id }: { id: string }) {
   );
 }
 function Detail({ lead: l }: { lead: Lead }) {
-  const { command, notify, config } = useWorkspace();
+  const { command, notify, config, preferences } = useWorkspace();
   const task = useTask();
   const [text, setText] = useState(l.messages.at(-1)?.text || "");
   const [edit, setEdit] = useState(false);
@@ -97,9 +98,10 @@ function Detail({ lead: l }: { lead: Lead }) {
   const [wa, setWa] = useState(l.whatsapp_confidence);
   const [site, setSite] = useState(l.website_status);
   const [screenshot, setScreenshot] = useState("");
+  const contactDraft = text.trim() || fallbackMessage(l, preferences);
   const blocked = !contactable(l);
-  const canWa = !blocked && !!whatsappUrl(l, text) && !l.is_demo;
-  const canCheckWa = !blocked && !!whatsappCheckUrl(l, text) && !l.is_demo;
+  const canWa = !blocked && !!whatsappUrl(l, contactDraft) && !l.is_demo;
+  const canCheckWa = !blocked && !!whatsappCheckUrl(l, contactDraft) && !l.is_demo;
   const hasFb = !blocked && !!l.facebook_url && !l.is_demo;
   async function saveDraft() {
     if (text.trim() && text !== l.messages.at(-1)?.text)
@@ -271,7 +273,7 @@ function Detail({ lead: l }: { lead: Lead }) {
             <div className="contact-actions">
               <button
                 className="button"
-                disabled={!canWa || !text.trim() || task.busy}
+                disabled={!canWa || task.busy}
                 onClick={() => setConfirm(true)}
               >
                 <MessageCircle size={17} /> Apri WhatsApp
@@ -279,7 +281,7 @@ function Detail({ lead: l }: { lead: Lead }) {
               {l.whatsapp_confidence === "uncertain" && (
                 <button
                   className="button secondary"
-                  disabled={!canCheckWa || !text.trim() || task.busy}
+                disabled={!canCheckWa || task.busy}
                   onClick={() => setConfirm(true)}
                 >
                   <MessageCircle size={17} /> Verifica su WhatsApp
@@ -745,7 +747,7 @@ function Detail({ lead: l }: { lead: Lead }) {
               Si aprirà WhatsApp con questa bozza. L’invio richiede una tua
               azione.
             </p>
-            <div className="message-preview">{text}</div>
+            <div className="message-preview">{contactDraft}</div>
             <div className="button-row">
               <button
                 className="button secondary"
@@ -757,8 +759,8 @@ function Detail({ lead: l }: { lead: Lead }) {
                 className="button"
                 href={
                   l.whatsapp_confidence === "uncertain"
-                    ? whatsappCheckUrl(l, text)
-                    : whatsappUrl(l, text)
+                    ? whatsappCheckUrl(l, contactDraft)
+                    : whatsappUrl(l, contactDraft)
                 }
                 target="_blank"
                 rel="noopener noreferrer"

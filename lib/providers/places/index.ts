@@ -67,6 +67,14 @@ export class GooglePlacesProvider implements LocalBusinessProvider {
     const source =
       l.maps_url ||
       `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.name)}&query_place_id=${encodeURIComponent(p.id)}`;
+    if (!l.website_url)
+      l.analysis.evidence.push({
+        id: uid(),
+        kind: "website_missing",
+        text: "Google Places non ha restituito un sito proprietario: verifica manualmente prima di concludere che manchi",
+        url: source,
+        confidence: 0.8,
+      });
     l.sources.push({
       id: uid(),
       source_type: "google_places",

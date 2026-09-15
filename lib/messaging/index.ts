@@ -56,6 +56,12 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
   )
     observation +=
       ": dalle informazioni pubblicate non ho trovato un sito vostro";
+  else if (
+    !own &&
+    evidence.some((e) => e.kind === "website_missing" && e.confidence >= 0.7)
+  )
+    observation +=
+      ": Google non mostra un sito proprietario, quindi vale la pena verificarlo";
   let pitch = own
     ? `si potrebbe fare un ${p.restyling ? "restyling" : "miglioramento del sito"} per valorizzare ${products}`
     : `un sito vostro potrebbe raccogliere ${products}`;
@@ -97,7 +103,9 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
     return false;
   if (
     !lead.analysis.evidence.some(
-      (e) => e.kind === "no_website" && e.confidence >= 0.7,
+      (e) =>
+        ["no_website", "website_missing"].includes(e.kind) &&
+        e.confidence >= 0.7,
     ) &&
     /non (?:ho )?trovato.*sito|non avete.*sito|senza (?:un )?sito/i.test(text)
   )

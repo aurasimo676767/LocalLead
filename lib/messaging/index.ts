@@ -30,14 +30,14 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
   const starts = [
     "ciao",
     "ciao, una cosa al volo",
-    "ciao, sono capitato sulla vostra pagina",
-    "ciao, stavo dando un’occhiata",
+    "ciao, vi scrivo al volo",
+    "ciao, ho dato un’occhiata a quello che fate",
   ];
   const ctas = [
-    "se vi va ne possiamo parlare",
-    "se può interessarvi ci sentiamo",
-    "volevo capire se poteva interessarvi",
-    "se vi interessa, possiamo sentirci",
+    "se vi va, vi mando due idee",
+    "se vi può servire, ci sentiamo",
+    "se vi interessa, ne parliamo",
+    "se vi va, vi spiego in due righe",
   ];
   const evidence = l.analysis.evidence;
   let observation = own
@@ -54,16 +54,16 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
     evidence.some((e) => e.kind === "no_website" && e.confidence >= 0.7)
   )
     observation +=
-      ": dalle informazioni pubblicate non ho trovato un sito vostro";
+      ": non ho trovato un sito vostro tra le informazioni pubblicate";
   else if (
     !own &&
     evidence.some((e) => e.kind === "website_missing" && e.confidence >= 0.7)
   )
     observation +=
-      ": Google non mostra un sito proprietario, quindi vale la pena verificarlo";
+      ": su Google non vedo un sito vostro, ma solo la scheda del locale";
   let pitch = own
-    ? `si potrebbe fare un ${p.restyling ? "restyling" : "miglioramento del sito"} per valorizzare ${products}`
-    : `un sito vostro potrebbe raccogliere ${products}`;
+    ? `un ${p.restyling ? "restyling" : "sistemata"} del sito lo renderebbe più semplice da usare e aggiornare, soprattutto per ${products}`
+    : `una pagina semplice con ${products} può farvi comodo`;
   if (
     p.events &&
     l.analysis.events_relevant &&
@@ -78,8 +78,10 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
       : p.tone === "molto casual"
         ? starts[index % starts.length]
         : ["ciao", "ciao, vi scrivo perché"][index % 2];
-  const identity = `realizzo siti per locali${p.local ? " della zona" : ""}`;
-  return `${intro}, ${observation}\n${pitch}\n${identity}, ${ctas[index % ctas.length]}`.replace(
+  const identity = own
+    ? `faccio siti per locali${p.local ? " della zona" : ""}`
+    : "faccio siti per locali";
+  return `${intro}, ${observation}.\n${pitch}.\n${identity}, ${ctas[index % ctas.length]}`.replace(
     /,,/g,
     ",",
   );

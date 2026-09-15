@@ -87,7 +87,9 @@ export function LeadDetail({ id }: { id: string }) {
 function Detail({ lead: l }: { lead: Lead }) {
   const { command, notify, config, preferences } = useWorkspace();
   const task = useTask();
-  const [text, setText] = useState(l.messages.at(-1)?.text || "");
+  const [text, setText] = useState(
+    () => l.messages.at(-1)?.text || fallbackMessage(l, preferences),
+  );
   const [edit, setEdit] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [channel, setChannel] = useState("WhatsApp");
@@ -234,7 +236,7 @@ function Detail({ lead: l }: { lead: Lead }) {
             />
             <div className="message-meta">
               <span>{text.length} caratteri · ideale 180–450</span>
-              <span>{l.messages.at(-1)?.model || "Nessuna bozza"}</span>
+              <span>{l.messages.at(-1)?.model || (text ? "Bozza automatica" : "Nessuna bozza")}</span>
             </div>
             <div className="button-row">
               <button

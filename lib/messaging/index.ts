@@ -81,7 +81,8 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
   const identity = own
     ? `faccio siti per locali${p.local ? " della zona" : ""}`
     : "faccio siti per locali";
-  return `${intro}, ${observation}.\n${pitch}.\n${identity}, ${ctas[index % ctas.length]}`.replace(
+  const greeting = p.tone === "neutro" ? "Buongiorno, come state?" : "Ciao, come va?";
+  return `${greeting}\n${intro}, ${observation}.\n${pitch}.\n${identity}, ${ctas[index % ctas.length]}`.replace(
     /,,/g,
     ",",
   );

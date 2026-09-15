@@ -241,6 +241,8 @@ function Detail({ lead: l }: { lead: Lead }) {
             <div className="button-row">
               <button
                 className="button secondary"
+                title="Crea una bozza personalizzata per questo lead"
+                aria-label={text ? "Rigenera messaggio" : "Genera messaggio"}
                 disabled={task.busy || !contactable(l)}
                 onClick={() =>
                   void task.run(async () => {

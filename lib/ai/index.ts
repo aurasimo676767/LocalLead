@@ -107,7 +107,14 @@ export async function generateOutreachMessage(
     try {
       const r = await client().responses.parse({
         model: model(),
-        instructions: outreachInstructions(lead, prefs, attempt),
+        instructions: `${outreachInstructions(lead, prefs, attempt)} ${
+          lead.website_status === "broken" ||
+          lead.analysis.evidence.some(
+            (e) => e.kind === "website_unreachable" && e.confidence >= 0.7,
+          )
+            ? "REGOLA SITO: il sito non è raggiungibile. Dillo chiaramente e parla solo del fatto che va rimesso online; non usare restyling, bello, brutto o altre valutazioni estetiche."
+            : "REGOLA SITO: puoi parlare della qualità o di un restyling solo se il sito è stato raggiunto e le evidenze lo dimostrano."
+        }`,
         store: false,
         max_output_tokens: 700,
         text: { format: zodTextFormat(messageSchema, "outreach_message") },

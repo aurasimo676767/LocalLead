@@ -142,7 +142,11 @@ describe("provider contracts and conservative enrichment", () => {
       }),
     );
     expect(l.website_quality).toBe("unknown");
+    expect(l.website_status).toBe("unknown");
     expect(l.analysis.warnings.length).toBeGreaterThan(0);
+    expect(
+      l.analysis.evidence.some((e) => e.kind === "website_unreachable"),
+    ).toBe(true);
     expect(l.analysis.evidence.some((e) => e.kind === "weak_website")).toBe(
       false,
     );

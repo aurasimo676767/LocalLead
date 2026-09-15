@@ -31,6 +31,7 @@ export async function enrichLead(input: Lead): Promise<Lead> {
         "good_website",
         "events",
         "menu_ads",
+        "website_unreachable",
       ].includes(e.kind),
   );
   l.analysis.features = null;
@@ -63,6 +64,12 @@ export async function enrichLead(input: Lead): Promise<Lead> {
         l.website_quality = classifyWebsite(f);
         if (f.status >= 400) {
           l.website_status = "broken";
+          add(
+            "website_unreachable",
+            `Il sito risponde con errore HTTP ${f.status}`,
+            page.url,
+            0.95,
+          );
           add(
             "weak_website",
             `Risposta HTTP ${f.status}; potrebbe essere temporanea o un blocco del crawler`,
@@ -139,8 +146,15 @@ export async function enrichLead(input: Lead): Promise<Lead> {
         });
       } catch {
         l.website_quality = "unknown";
+        l.website_status = "unknown";
+        add(
+          "website_unreachable",
+          "Il sito indicato non è raggiungibile o non ha restituito una pagina HTML",
+          l.website_url,
+          0.9,
+        );
         l.analysis.warnings.push(
-          "Sito non analizzabile: timeout, rete protetta o contenuto non HTML. Nessun difetto presunto.",
+          "Sito non raggiungibile o non analizzabile: nessun restyling presunto.",
         );
       }
     }

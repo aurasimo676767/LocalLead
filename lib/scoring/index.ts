@@ -13,6 +13,7 @@ export function scoreLead(lead: Lead): Lead {
   )
     add("no_website", "Nessun sito proprietario verificato", 30);
   add("website_missing", "Sito non indicato da Google Places: da verificare", 25);
+  add("website_unreachable", "Sito non raggiungibile", 30);
   if (["poor", "broken"].includes(lead.website_quality))
     add("weak_website", "Sito migliorabile: criticità rilevate", 25);
   add("menu_ads", "Elementi pubblicitari nel menu", 15);
@@ -71,12 +72,19 @@ export function scoreLead(lead: Lead): Lead {
     (lead.website_quality === "excellent" || lead.website_quality === "good"
       ? "Sito buono: non contattare"
       : "Nessuna opportunità verificata");
-  const weak = ["poor", "broken"].includes(lead.website_quality);
-  const opportunity = ev.some(
+  const unavailable =
+    lead.website_quality === "broken" ||
+    ev.some((e) => e.kind === "website_unreachable" && e.confidence >= 0.7);
+  const weak = lead.website_quality === "poor";
+  const opportunity = unavailable
+    ? "Rimettere online il sito prima di proporre modifiche"
+    : ev.some(
     (e) => e.kind === "menu_ads" && e.confidence >= 0.7,
   )
     ? "Menu proprietario più pulito"
-    : weak
+    : unavailable
+      ? "Rimettere online il sito prima di proporre modifiche"
+      : weak
       ? "Restyling per valorizzare contenuti, foto e contatti"
       : ["none", "social_only", "external_page_only"].includes(
             lead.website_status,
@@ -135,5 +143,7 @@ export const worthwhile = (lead: Lead) =>
         e.kind === "menu_ads" ||
         (e.kind === "events" &&
           lead.website_status === "own_website" &&
-          !lead.analysis.features?.has_events_page)),
+          !lead.analysis.features?.has_events_page) ||
+        (e.kind === "website_unreachable" &&
+          ["unknown", "broken"].includes(lead.website_quality))),
   );

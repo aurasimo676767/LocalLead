@@ -66,6 +66,7 @@ export function patchLead(lead: Lead, raw: unknown): Lead {
             "sparse",
             "good_website",
             "no_website",
+            "website_unreachable",
             "events",
             "menu_ads",
             "whatsapp",

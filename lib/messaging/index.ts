@@ -15,7 +15,13 @@ export function similarity(a: string, b: string) {
 }
 export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
   if (!contactable(l)) return "";
-  const own = ["own_website", "broken"].includes(l.website_status);
+  const evidence = l.analysis.evidence;
+  const unavailable =
+    l.website_status === "broken" ||
+    evidence.some(
+      (e) => e.kind === "website_unreachable" && e.confidence >= 0.7,
+    );
+  const own = l.website_status === "own_website" && !unavailable;
   const food = [
     "Panificio",
     "Pasticceria",
@@ -39,10 +45,11 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
     "se vi va, ci possiamo sentire",
     "volevo capire se poteva interessarvi",
   ];
-  const evidence = l.analysis.evidence;
   const opening = starts[index % starts.length];
   let observation = opening;
-  if (evidence.some((e) => e.kind === "menu_ads" && e.confidence >= 0.7))
+  if (unavailable)
+    observation += ": ho provato ad aprire il sito ma al momento non risponde";
+  else if (evidence.some((e) => e.kind === "menu_ads" && e.confidence >= 0.7))
     observation +=
       ": ho visto anche il menu online e secondo me la pubblicità intorno lo fa sembrare un po' meno vostro";
   else if (own && evidence.some((e) => e.kind === "sparse"))
@@ -62,7 +69,9 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
   )
     observation += ": su Google non ho visto un sito vostro, solo la scheda";
   else observation += ", e mi è venuta una cosa in mente";
-  let pitch = own
+  let pitch = unavailable
+    ? "prima di pensare a modifiche bisognerebbe rimetterlo online, poi si può sistemare il resto"
+    : own
     ? `secondo me con un ${p.restyling ? "restyling" : "sistemata"} semplice si potrebbe rendere il sito più completo, soprattutto per ${products}`
     : `secondo me per il tipo di locale che avete ci starebbe bene un sito vostro, semplice ma fatto bene, con ${products} tutti nello stesso posto`;
   if (
@@ -128,7 +137,8 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
   if (!prefs.qr && /\bqr\b/i.test(text)) return false;
   if (!prefs.local && /della zona/i.test(text)) return false;
   if (
-    ["own_website", "broken"].includes(lead.website_status) &&
+    lead.website_status === "own_website" &&
+    ["good", "average", "poor"].includes(lead.website_quality) &&
     (!/restyling|miglior|rived|aggiorn/i.test(text) ||
       /non avete.*sito|senza.*sito|sito nuovo/i.test(text))
   )

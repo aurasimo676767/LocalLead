@@ -71,8 +71,8 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
     !l.analysis.features?.has_events_page
   )
     pitch += " e le prossime serate";
-  else if (p.qr && !food && l.menu_status !== "unknown" && index % 2 === 0)
-    pitch += ", anche con un QR per il menu";
+  else if (p.qr && !food && index % 2 === 0)
+    pitch += ", volendo anche con un QR per aprire il menu al tavolo";
   const identity = p.local
     ? "io mi occupo proprio di siti per locali della zona"
     : "io mi occupo proprio di siti per locali";

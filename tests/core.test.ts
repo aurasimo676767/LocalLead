@@ -151,6 +151,11 @@ describe("messages and contacts", () => {
     expect(fallbackMessage(demoLeads()[3], defaultPreferences)).not.toMatch(
       /QR/,
     ));
+  it("includes menu and QR in a food venue site pitch when enabled", () => {
+    const text = fallbackMessage(demoLeads()[1], defaultPreferences);
+    expect(text).toMatch(/menu/i);
+    expect(text).toMatch(/QR/i);
+  });
   it("validates disabled event and demo preferences", () =>
     expect(
       messageAllowed(

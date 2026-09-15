@@ -5,6 +5,7 @@ import {
   safeUrl,
   publicIp,
   whatsappUrl,
+  whatsappCheckUrl,
   dedupKeys,
 } from "@/lib/utils";
 import { newLead, defaultPreferences } from "@/lib/model";
@@ -176,6 +177,14 @@ describe("messages and contacts", () => {
         "ciao",
       ),
     ).toBe("");
+  });
+  it("offers a safe check link without asserting WhatsApp business", () => {
+    const l = {
+      ...base(),
+      phone: "3331234567",
+      whatsapp_confidence: "uncertain" as const,
+    };
+    expect(whatsappCheckUrl(l, "ciao")).toContain("wa.me/393331234567");
   });
 });
 describe("website classification", () => {

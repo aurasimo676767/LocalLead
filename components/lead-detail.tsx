@@ -21,7 +21,7 @@ import { PageHeading, Score, Status, ErrorText, Field } from "./ui";
 import { LeadForm } from "./lead-form";
 import { statuses, statusLabels, contactable, type Lead } from "@/lib/model";
 import { hotReasons, worthwhile } from "@/lib/scoring";
-import { safeUrl, whatsappUrl } from "@/lib/utils";
+import { safeUrl, whatsappUrl, whatsappCheckUrl } from "@/lib/utils";
 const labels: Record<string, string> = {
   none: "Assente (verificato)",
   own_website: "Sito proprietario",
@@ -99,6 +99,7 @@ function Detail({ lead: l }: { lead: Lead }) {
   const [screenshot, setScreenshot] = useState("");
   const blocked = !contactable(l);
   const canWa = !blocked && !!whatsappUrl(l, text) && !l.is_demo;
+  const canCheckWa = !blocked && !!whatsappCheckUrl(l, text) && !l.is_demo;
   const hasFb = !blocked && !!l.facebook_url && !l.is_demo;
   async function saveDraft() {
     if (text.trim() && text !== l.messages.at(-1)?.text)
@@ -275,6 +276,15 @@ function Detail({ lead: l }: { lead: Lead }) {
               >
                 <MessageCircle size={17} /> Apri WhatsApp
               </button>
+              {l.whatsapp_confidence === "uncertain" && (
+                <button
+                  className="button secondary"
+                  disabled={!canCheckWa || !text.trim() || task.busy}
+                  onClick={() => setConfirm(true)}
+                >
+                  <MessageCircle size={17} /> Verifica su WhatsApp
+                </button>
+              )}
               <button
                 className="button secondary"
                 disabled={!hasFb || !text.trim() || task.busy}
@@ -745,7 +755,11 @@ function Detail({ lead: l }: { lead: Lead }) {
               </button>
               <a
                 className="button"
-                href={whatsappUrl(l, text)}
+                href={
+                  l.whatsapp_confidence === "uncertain"
+                    ? whatsappCheckUrl(l, text)
+                    : whatsappUrl(l, text)
+                }
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => {

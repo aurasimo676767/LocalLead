@@ -130,3 +130,8 @@ export function whatsappUrl(lead: Lead, message: string) {
     return "";
   return `https://wa.me/${number.slice(1)}?text=${encodeURIComponent(message)}`;
 }
+export function whatsappCheckUrl(lead: Lead, message: string) {
+  const number = normalizePhone(lead.phone);
+  if (!number || !contactable(lead)) return "";
+  return `https://wa.me/${number.slice(1)}?text=${encodeURIComponent(message)}`;
+}

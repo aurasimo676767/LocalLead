@@ -214,7 +214,7 @@ describe("messages and contacts", () => {
     lead.analysis.evidence.push({
       id: "timeout",
       kind: "website_unreachable",
-      text: "Il sito risponde con errore HTTP 503",
+      text: "Il sito risponde con errore HTTP 410",
       url: lead.website_url,
       confidence: 0.9,
     });
@@ -314,7 +314,7 @@ describe("messages and contacts", () => {
       {
         id: "broken",
         kind: "website_unreachable",
-        text: "Il sito risponde con errore HTTP 503",
+        text: "Il sito risponde con errore HTTP 410",
         url: "https://example.com",
         confidence: 0.9,
       },
@@ -399,7 +399,7 @@ describe("messages and contacts", () => {
             kind === "weak_website"
               ? "Revisione manuale: sito poco moderno"
               : kind === "website_unreachable"
-                ? "Il sito risponde con errore HTTP 503"
+                ? "Il sito risponde con errore HTTP 410"
                 : `Osservazione verificata: ${kind}`,
           url: "https://example.com/source",
           confidence: 0.9,
@@ -593,6 +593,27 @@ describe("CRM and import", () => {
         { whatsapp_confidence: "confirmed_business" },
       ),
     ).toThrow());
+  it("requires a manual source before marking a website as broken", () => {
+    expect(() => patchLead(base(), { website_status: "broken" })).toThrow();
+    const updated = patchLead(base(), {
+      website_status: "broken",
+      verification_url: "https://example.com/check",
+      verification_note:
+        "Aperto nel browser e restituisce una pagina di errore",
+    });
+    expect(updated.analysis.evidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "website_unreachable",
+          text: expect.stringMatching(/^Verifica manuale:/),
+          confidence: 1,
+        }),
+      ]),
+    );
+    expect(fallbackMessage(updated, defaultPreferences)).toContain(
+      "sembra che al momento non funzioni",
+    );
+  });
   it("records manual contact with channel", () => {
     const l = patchLead(base(), {
       status: "contacted",

@@ -113,7 +113,7 @@ describe("provider contracts and conservative enrichment", () => {
       source_type: "website_analysis",
       url: lead.website_url,
       confidence: 1,
-      metadata_json: { analysis_version: "reachability-v3" },
+      metadata_json: { analysis_version: "reachability-v4" },
       created_at: new Date().toISOString(),
     });
     expect(await enrichLead(lead)).toBe(lead);
@@ -249,7 +249,7 @@ describe("provider contracts and conservative enrichment", () => {
       true,
     );
   });
-  it("records an actual server error and does not judge the error page as site content", async () => {
+  it("treats a server error as an inconclusive automated check", async () => {
     mocks.publicHtml.mockResolvedValue({
       body: "<html>Service unavailable</html>",
       status: 503,
@@ -264,10 +264,12 @@ describe("provider contracts and conservative enrichment", () => {
         website_url: "https://example.com",
       }),
     );
-    expect(lead.website_quality).toBe("broken");
-    expect(fallbackMessage(lead, defaultPreferences)).toContain(
-      "sembra che al momento non funzioni",
-    );
+    expect(lead.website_quality).toBe("unknown");
+    expect(lead.website_status).toBe("unknown");
+    expect(fallbackMessage(lead, defaultPreferences)).toBe("");
+    expect(
+      lead.analysis.evidence.some((e) => e.kind === "website_check_failed"),
+    ).toBe(true);
   });
   it("returns a fallback immediately after a provider timeout", async () => {
     vi.stubEnv("OPENAI_API_KEY", "offline-test-key");

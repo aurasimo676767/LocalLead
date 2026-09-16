@@ -132,6 +132,23 @@ export function patchLead(lead: Lead, raw: unknown): Lead {
     });
     l.website_status = p.website_status;
   }
+  if (p.website_status === "broken") {
+    if (!verification_url || !verification_note?.trim())
+      throw new Error(
+        "Per segnare un sito come non funzionante servono una fonte e una verifica manuale",
+      );
+    l.analysis.evidence = l.analysis.evidence.filter(
+      (e) => e.kind !== "website_unreachable",
+    );
+    l.analysis.evidence.push({
+      id: uid(),
+      kind: "website_unreachable",
+      text: `Verifica manuale: ${verification_note.trim()}`,
+      url: verification_url,
+      confidence: 1,
+    });
+    l.website_status = "broken";
+  }
   if (verification_url && verification_note)
     l.sources = [
       ...l.sources,

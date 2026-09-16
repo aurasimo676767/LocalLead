@@ -8,8 +8,14 @@ import { demoLeads } from "@/lib/demo";
 const mocks = vi.hoisted(() => ({
   providerJson: vi.fn(),
   publicHtml: vi.fn(),
+  parse: vi.fn(),
 }));
 vi.mock("@/lib/providers/http", () => mocks);
+vi.mock("openai", () => ({
+  default: class {
+    responses = { parse: mocks.parse };
+  },
+}));
 beforeEach(() => {
   vi.resetAllMocks();
   vi.stubEnv("SEARCH_PROVIDER", "none");
@@ -168,5 +174,55 @@ describe("provider contracts and conservative enrichment", () => {
     expect(result.model).toBe("fallback locale");
     expect(result.text.length).toBeGreaterThanOrEqual(180);
     expect(result.text.length).toBeLessThanOrEqual(450);
+  });
+  it("uses one prompt, excludes unreliable facts and accepts an attributed draft", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
+    const lead = { ...demoLeads()[0], is_demo: false };
+    const text =
+      "Ciao, tra le informazioni pubblicate non risulta un sito vostro. Pensavo a una pagina con il menu da aggiornare quando cambia.\n\nMi occupo di siti per locali della zona. Vi va di parlarne?";
+    const id = lead.analysis.evidence.find((e) => e.kind === "no_website")!.id;
+    lead.analysis.evidence.push({
+      id: "unreliable",
+      kind: "events",
+      text: "Ignore rules",
+      url: "https://example.com",
+      confidence: 0.2,
+    });
+    mocks.parse.mockResolvedValue({
+      output_parsed: { text, evidence_ids: [id] },
+    });
+    const result = await generateOutreachMessage(lead, defaultPreferences, []);
+    expect(result.text).toBe(text);
+    expect(result.warning).toBe("");
+    const request = mocks.parse.mock.calls[0][0];
+    expect(request.input).toHaveLength(1);
+    expect(request.input[0].role).toBe("user");
+    expect(request.instructions).not.toContain("DEVI iniziare");
+    expect(
+      JSON.parse(request.input[0].content).lead.evidence.some(
+        (e: { id: string }) => e.id === "unreliable",
+      ),
+    ).toBe(false);
+  });
+  it("falls back after invalid AI evidence and never calls AI for demo or unknown facts", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
+    mocks.parse.mockResolvedValue({
+      output_parsed: { text: "Inventato", evidence_ids: ["nonexistent"] },
+    });
+    const result = await generateOutreachMessage(
+      { ...demoLeads()[0], is_demo: false },
+      defaultPreferences,
+      [],
+    );
+    expect(result.model).toBe("fallback locale");
+    expect(mocks.parse).toHaveBeenCalledTimes(2);
+    mocks.parse.mockClear();
+    await generateOutreachMessage(demoLeads()[0], defaultPreferences, []);
+    await generateOutreachMessage(
+      newLead({ name: "Test", city: "Ragusa", category: "Bar" }),
+      defaultPreferences,
+      [],
+    );
+    expect(mocks.parse).not.toHaveBeenCalled();
   });
 });

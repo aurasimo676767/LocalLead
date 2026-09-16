@@ -9,7 +9,12 @@ import {
   isLandlinePhone,
   dedupKeys,
 } from "@/lib/utils";
-import { newLead, defaultPreferences } from "@/lib/model";
+import {
+  newLead,
+  defaultPreferences,
+  categories,
+  type Preferences,
+} from "@/lib/model";
 import { scoreLead, fitsFilter } from "@/lib/scoring";
 import { fallbackMessage, similarity, messageAllowed } from "@/lib/messaging";
 import { demoLeads } from "@/lib/demo";
@@ -123,6 +128,96 @@ describe("scoring and evidence", () => {
     expect(fitsFilter(base(), "none")).toBe(false));
 });
 describe("messages and contacts", () => {
+  it("keeps every offline variant valid across categories and preferences", () => {
+    const preferences: Preferences[] = Array.from(
+      { length: 64 },
+      (_, bits) => ({
+        ...defaultPreferences,
+        qr: !!(bits & 1),
+        events: !!(bits & 2),
+        restyling: !!(bits & 4),
+        local: !!(bits & 8),
+        free_demo: !!(bits & 16),
+        tone: bits & 32 ? "neutro" : "molto casual",
+      }),
+    );
+    const leads = [
+      ...demoLeads().filter((l) => !["bad_lead"].includes(l.status)),
+      base(),
+    ];
+    const broken = { ...demoLeads()[4], website_status: "broken" as const };
+    leads.push(broken);
+    for (const lead of leads)
+      for (const category of categories)
+        for (const prefs of preferences) {
+          for (let i = 0; i < 6; i++) {
+            const l = { ...lead, category };
+            const text = fallbackMessage(l, prefs, i);
+            expect(messageAllowed(text, l, prefs), `${category}: ${text}`).toBe(
+              true,
+            );
+            expect(text).not.toMatch(
+              /ho visto (?:il vostro menu|le foto)|guardando.*profilo/,
+            );
+          }
+        }
+  });
+  it("asks about a missing Google link without asserting that no site exists", () => {
+    const lead = base();
+    lead.analysis.evidence.push({
+      id: "missing",
+      kind: "website_missing",
+      confidence: 0.9,
+      url: "https://example.com",
+      text: "No website field",
+    });
+    const text = fallbackMessage(lead, defaultPreferences);
+    expect(text).toContain("Ne avete già uno");
+    expect(
+      messageAllowed(
+        text.replace("Ne avete già uno", "non avete un sito"),
+        lead,
+        defaultPreferences,
+      ),
+    ).toBe(false);
+  });
+  it("does not use weak or unsourced event evidence", () => {
+    const lead = demoLeads()[2];
+    lead.analysis.evidence = lead.analysis.evidence.map((e) =>
+      e.kind === "events" ? { ...e, confidence: 0.4 } : e,
+    );
+    expect(fallbackMessage(lead, defaultPreferences)).not.toMatch(
+      /serate|eventi/,
+    );
+    lead.analysis.evidence = lead.analysis.evidence.map((e) => ({
+      ...e,
+      confidence: 1,
+      url: "",
+    }));
+    expect(fallbackMessage(lead, defaultPreferences)).not.toMatch(
+      /serate|eventi|non risulta/,
+    );
+  });
+  it("describes a failed site check without diagnosing an outage or proposing restyling", () => {
+    const lead = demoLeads()[4];
+    lead.analysis.evidence.push({
+      id: "timeout",
+      kind: "website_unreachable",
+      text: "Timeout",
+      url: lead.website_url,
+      confidence: 0.9,
+    });
+    const text = fallbackMessage(lead, defaultPreferences);
+    expect(text).toContain("temporanea?");
+    expect(text).not.toMatch(/restyling|rimetter|offline|QR/);
+    expect(
+      messageAllowed(
+        text.replace("verificare cosa succede", "rimettere online il sito"),
+        lead,
+        defaultPreferences,
+      ),
+    ).toBe(false);
+  });
   it("detects identical messages and different content", () => {
     expect(similarity("ciao come va", "ciao come va")).toBe(1);
     expect(similarity("ciao come va", "prodotti forno fresco")).toBe(0);
@@ -189,12 +284,7 @@ describe("messages and contacts", () => {
         "ciao & caffè",
       ),
     ).toContain("text=ciao%20%26%20caff%C3%A8");
-    expect(
-      whatsappCheckUrl(
-        { ...l, phone: "0932 123456" },
-        "ciao",
-      ),
-    ).toBe("");
+    expect(whatsappCheckUrl({ ...l, phone: "0932 123456" }, "ciao")).toBe("");
     expect(
       whatsappUrl(
         {

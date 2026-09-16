@@ -41,7 +41,7 @@ test("manual WhatsApp verification opens a confirmation containing only a draft 
     .click();
   await expect(page.getByRole("status")).toContainText("Verifica salvata");
   await page
-    .getByRole("button", { name: "Genera messaggio", exact: true })
+    .getByRole("button", { name: /^(?:Ri)?[Gg]enera messaggio$/ })
     .click();
   await page
     .getByRole("button", { name: "Apri WhatsApp", exact: true })
@@ -69,7 +69,7 @@ test("demo discovery, dedup, editable draft, CRM, opt-out and persistence", asyn
     .getByRole("link", { name: "Forno delle Nuvole", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "Genera messaggio", exact: true })
+    .getByRole("button", { name: /^(?:Ri)?[Gg]enera messaggio$/ })
     .click();
   const draft = page.getByRole("textbox", { name: "Messaggio suggerito" });
   await expect(draft).not.toHaveValue("");

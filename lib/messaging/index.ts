@@ -13,90 +13,143 @@ export function similarity(a: string, b: string) {
   if (!x.size || !y.size) return a === b ? 1 : 0;
   return [...x].filter((v) => y.has(v)).length / new Set([...x, ...y]).size;
 }
-export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
-  if (!contactable(l)) return "";
-  const evidence = l.analysis.evidence;
-  const unavailable =
-    l.website_status === "broken" ||
-    evidence.some(
-      (e) => e.kind === "website_unreachable" && e.confidence >= 0.7,
+export function messageFacts(l: Lead, p: Preferences) {
+  const has = (kind: string) =>
+    l.analysis.evidence.some(
+      (e) => e.kind === kind && e.confidence >= 0.7 && !!e.url,
     );
-  const own = l.website_status === "own_website" && !unavailable;
-  const food = [
+  const products = [
     "Panificio",
     "Pasticceria",
     "Gastronomia",
     "Gelateria",
+    "Rosticceria",
+    "Altro food",
   ].includes(l.category);
-  const products = food
-    ? "prodotti, specialità, foto e contatti"
-    : ["Pub", "Cocktail bar"].includes(l.category)
-      ? "drink list, foto e contatti"
-      : "menu, foto e contatti";
-  const starts = [
-    "ciao, sono capitato sulla vostra pagina e mi è venuta un'idea",
-    "ciao, stavo guardando un po' il vostro profilo",
-    "ciao, ho visto il vostro menu online",
-    "ciao, mi sono fermato a guardare le foto del locale",
-  ];
-  const ctas = [
-    "se vi può servire, ci sentiamo",
-    "se vi interessa, ne parliamo",
-    "se vi va, ci possiamo sentire",
-    "volevo capire se poteva interessarvi",
-  ];
-  const opening = starts[index % starts.length];
-  let observation = opening;
-  if (unavailable)
-    observation += ": ho provato ad aprire il sito ma al momento non risponde";
-  else if (evidence.some((e) => e.kind === "menu_ads" && e.confidence >= 0.7))
-    observation +=
-      ": ho visto anche il menu online e secondo me la pubblicità intorno lo fa sembrare un po' meno vostro";
-  else if (own && evidence.some((e) => e.kind === "sparse"))
-    observation +=
-      " e il sito mi sembra un po' vuoto rispetto alle cose che fate";
-  else if (l.analysis.events_relevant && p.events)
-    observation += ", e ho visto che fate anche serate";
-  else if (
-    !own &&
-    evidence.some((e) => e.kind === "no_website" && e.confidence >= 0.7)
-  )
-    observation +=
-      ": tra le informazioni pubblicate non ho trovato un sito vostro";
-  else if (
-    !own &&
-    evidence.some((e) => e.kind === "website_missing" && e.confidence >= 0.7)
-  )
-    observation += ": su Google non ho visto un sito vostro, solo la scheda";
-  else observation += ", e mi è venuta una cosa in mente";
-  let pitch = unavailable
-    ? "prima di pensare a modifiche bisognerebbe rimetterlo online, poi si può sistemare il resto"
-    : own
-    ? `secondo me con un ${p.restyling ? "restyling" : "sistemata"} semplice si potrebbe rendere il sito più completo, soprattutto per ${products}`
-    : `secondo me per il tipo di locale che avete ci starebbe bene un sito vostro, semplice ma fatto bene, con ${products} tutti nello stesso posto`;
-  if (
-    p.events &&
-    l.analysis.events_relevant &&
-    !l.analysis.features?.has_events_page
-  )
-    pitch += " e le prossime serate";
-  else if (p.qr && !food && index % 2 === 0)
-    pitch += ", volendo anche con un QR per aprire il menu al tavolo";
-  const identity = p.local
-    ? "io mi occupo proprio di siti per locali della zona"
-    : "io mi occupo proprio di siti per locali";
-  return `${observation}.\n\n${pitch}. ${identity}, ${ctas[index % ctas.length]}`.replace(
-    /,,/g,
-    ",",
-  );
+  const unavailable =
+    l.website_status === "broken" || has("website_unreachable");
+  return {
+    unavailable,
+    own: l.website_status === "own_website" || l.website_status === "broken",
+    missing:
+      has("no_website") &&
+      (!l.website_url ||
+        ["social_only", "external_page_only"].includes(l.website_status)) &&
+      l.website_status !== "own_website" &&
+      !unavailable,
+    listingMissing: has("website_missing"),
+    weak: has("weak_website") || has("sparse"),
+    sparse: has("sparse"),
+    ads: has("menu_ads"),
+    events: p.events && l.analysis.events_relevant && has("events"),
+    products,
+    drinks: ["Pub", "Cocktail bar"].includes(l.category),
+    qr: p.qr && !products,
+  };
+}
+
+export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
+  if (!contactable(l)) return "";
+  const f = messageFacts(l, p);
+  const variant = ((index % 12) + 12) % 12;
+  const greeting = p.tone === "molto casual" ? "ciao" : "Ciao";
+  let observation: string;
+  let pitch: string;
+  const menu = f.products
+    ? "i prodotti"
+    : f.drinks
+      ? "la drink list"
+      : "il menu";
+  if (f.unavailable) {
+    observation =
+      "nel controllo del vostro sito non sono riuscito ad aprirlo. È una cosa temporanea?";
+    pitch = "Se vi serve una mano a verificare cosa succede, possiamo parlarne";
+  } else if (f.ads) {
+    observation = "nel menu online compaiono dei blocchi pubblicitari";
+    pitch = f.own
+      ? "Si potrebbe aggiornare il sito mettendoci il menu, senza quegli annunci"
+      : "Si potrebbe mettere il menu su una pagina vostra, senza quegli annunci";
+  } else if (f.own && f.weak) {
+    observation = f.sparse
+      ? "dalla homepage si leggono poche informazioni sul locale"
+      : "vi scrivo per capire se state pensando a qualche aggiornamento del sito";
+    pitch = p.restyling
+      ? "Si potrebbe fare un piccolo restyling per aggiornare i contenuti"
+      : "Si potrebbero aggiornare i contenuti del sito";
+  } else if (f.events) {
+    observation = "ho visto che organizzate anche serate";
+    pitch = f.own
+      ? "Si potrebbe aggiornare il sito con le prossime date"
+      : "Ci starebbe una pagina con le prossime date e " +
+        menu +
+        " da aggiornare";
+  } else if (f.missing) {
+    observation =
+      "tra le informazioni pubblicate non ho trovato un sito vostro";
+    pitch =
+      "Pensavo a un sito con " + menu + ", facile da aggiornare quando serve";
+  } else if (f.own) {
+    observation =
+      "vi scrivo per sapere se state pensando ad aggiornare il vostro sito";
+    pitch =
+      "Mi occupo di siti per locali" +
+      (p.local ? " della zona" : "") +
+      " e volevo capire se avete già qualcosa in mente";
+  } else {
+    observation = f.listingMissing
+      ? "nella scheda Google non è indicato un sito. Ne avete già uno dove trovare " +
+        menu +
+        "?"
+      : "avete già un sito dove trovare " +
+        menu +
+        " e le informazioni del locale?";
+    pitch =
+      "Mi occupo di siti per locali" +
+      (p.local ? " della zona" : "") +
+      ": se è una cosa a cui state pensando, possiamo parlarne";
+  }
+  if (!f.unavailable && (f.missing || f.ads || (f.own && f.weak))) {
+    if (f.qr && variant % 2 === 0)
+      pitch += ", con un QR per aprire il menu al tavolo";
+    else if (f.ads || (f.own && f.weak))
+      pitch += ". Potreste aggiornare " + menu + " quando serve";
+  }
+  const identity =
+    "Mi occupo di siti per locali" + (p.local ? " della zona" : "");
+  const ctas =
+    p.tone === "neutro"
+      ? [
+          "Vi interessa parlarne?",
+          "Se vi interessa, possiamo sentirci.",
+          "È qualcosa che state valutando?",
+        ]
+      : [
+          "Vi va di parlarne?",
+          "Se vi interessa, ci sentiamo.",
+          "Ci possiamo sentire?",
+        ];
+  const intro =
+    greeting + ", " + observation + (/[?.]$/.test(observation) ? "" : ".");
+  if (pitch.startsWith("Mi occupo")) return intro + "\n\n" + pitch + ".";
+  if (variant % 3 === 1)
+    return intro + "\n\n" + identity + ". " + pitch + ". " + ctas[variant % 3];
+  return intro + "\n\n" + pitch + ".\n\n" + identity + ". " + ctas[variant % 3];
 }
 export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
   const trimmed = text.trim();
+  const facts = messageFacts(lead, prefs);
+  if (
+    facts.unavailable &&
+    /restyling|rimetter|ripristin|sito (?:è )?offline|sito nuovo|sito più bello/i.test(
+      text,
+    )
+  )
+    return false;
   if (!/^ciao\b/i.test(trimmed)) return false;
   if (/^ciao,?\s*come va|^(?:salve|buongiorno|gentile)\b/i.test(trimmed))
     return false;
   if (
-    /punto di riferimento|ottima reputazione|complimenti per le recensioni|valorizzare|presenza online|esperienza digitale|\bsoluzione\b|\bopportunità\b|\bclientela\b|\bprofessionale\b|ottimizzare|senza impegno|con calma|rendere tutto piÃ¹ comodo/i.test(
+    /punto di riferimento|ottima reputazione|complimenti per le recensioni|valorizzare|presenza online|esperienza digitale|\bsoluzione\b|opportunità|\bclientela\b|\bprofessionale\b|ottimizzare|senza impegno|con calma|rendere tutto più comodo/i.test(
       trimmed,
     )
   )
@@ -107,7 +160,12 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
     !/sit[oi]/i.test(text)
   )
     return false;
-  if (!/(sentir|sentiamo|parlar|interess|se vi va)/i.test(text)) return false;
+  if (
+    !/(sentir|sentiamo|parlar|interess|se vi va|state valutando|in mente)/i.test(
+      text,
+    )
+  )
+    return false;
   if (
     !lead.analysis.evidence.some(
       (e) => e.kind === "curated_social" && e.confidence >= 0.7,
@@ -118,12 +176,10 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
   )
     return false;
   if (
-    !lead.analysis.evidence.some(
-      (e) =>
-        ["no_website", "website_missing"].includes(e.kind) &&
-        e.confidence >= 0.7,
-    ) &&
-    /non (?:ho )?trovato.*sito|non avete.*sito|senza (?:un )?sito/i.test(text)
+    !facts.missing &&
+    /non (?:ho )?trovato.*sito|non avete.*sito|senza (?:un )?sito|non (?:risulta|esiste).*sito/i.test(
+      text,
+    )
   )
     return false;
   if (
@@ -135,14 +191,15 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
   )
     return false;
   if (
-    (!prefs.events || !lead.analysis.events_relevant) &&
+    !facts.events &&
     /eventi|serate|dj set|karaoke|live music|party/i.test(text)
   )
     return false;
   if (!prefs.free_demo && /demo|gratuit|senza costo/i.test(text)) return false;
-  if (!prefs.qr && /\bqr\b/i.test(text)) return false;
+  if (!facts.qr && /\bqr\b/i.test(text)) return false;
   if (!prefs.local && /della zona/i.test(text)) return false;
   if (
+    !facts.unavailable &&
     lead.website_status === "own_website" &&
     ["good", "average", "poor"].includes(lead.website_quality) &&
     (!/restyling|miglior|rived|aggiorn/i.test(text) ||
@@ -150,10 +207,6 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
   )
     return false;
   if (!prefs.restyling && /restyling/i.test(text)) return false;
-  if (
-    !lead.analysis.evidence.some((e) => e.kind === "menu_ads") &&
-    /pubblicità|annunci pubblicitari/i.test(text)
-  )
-    return false;
+  if (!facts.ads && /pubblicità|annunci pubblicitari/i.test(text)) return false;
   return true;
 }

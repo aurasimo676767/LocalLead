@@ -105,7 +105,8 @@ function Detail({ lead: l }: { lead: Lead }) {
   const contactDraft = text.trim() || fallbackMessage(l, preferences);
   const blocked = !contactable(l);
   const canWa = !blocked && !!whatsappUrl(l, contactDraft) && !l.is_demo;
-  const canCheckWa = !blocked && !!whatsappCheckUrl(l, contactDraft) && !l.is_demo;
+  const canCheckWa =
+    !blocked && !!whatsappCheckUrl(l, contactDraft) && !l.is_demo;
   const hasFb = !blocked && !!l.facebook_url && !l.is_demo;
   const navigable = leads.filter(
     (item) =>
@@ -289,7 +290,14 @@ function Detail({ lead: l }: { lead: Lead }) {
             />
             <div className="message-meta">
               <span>{text.length} caratteri · ideale 180–450</span>
-              <span>{l.messages.at(-1)?.model || (text ? "Bozza automatica" : "Nessuna bozza")}</span>
+              <span>
+                {l.messages.at(-1)?.model ||
+                  (text
+                    ? config.ai
+                      ? "Bozza locale · premi Rigenera per usare l’AI"
+                      : "Bozza locale"
+                    : "Nessuna bozza")}
+              </span>
             </div>
             <div className="button-row">
               <button

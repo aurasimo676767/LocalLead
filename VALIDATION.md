@@ -1,5 +1,30 @@
 # Verifica V1 — 15 settembre 2026
 
+## Revisione messaggi — 16 settembre 2026
+
+- Unificati i prompt contraddittori; indicazioni recuperate da Git documentate
+  in `lib/messaging/README.md`.
+- Riscritte le bozze locali e verificati categorie, preferenze, fonti mancanti,
+  errori di accesso al sito e risposte AI simulate con ID non validi.
+- `pnpm lint`: superato (ESLint e TypeScript).
+- `pnpm test`: 85 test superati prima del ripristino delle dipendenze.
+  Verifica finale: `pnpm test --configLoader native --pool threads`, tutti gli
+  85 test superati. Il caricamento standard e i processi worker separati
+  incontrano `spawn EPERM` in questo ambiente.
+- `pnpm build`: primo passaggio completo superato; dopo gli ultimi ritocchi al
+  testo, compilazione riuscita ma fase TypeScript interrotta da `spawn EPERM`.
+- `pnpm test:browser`: non completato; Playwright non riesce ad avviare il
+  server di test (`spawn EPERM`). I selettori sono stati aggiornati per il
+  pulsante che ora si chiama anche “Rigenera messaggio”, ma il flusso non è
+  stato verificato nel browser in questa revisione.
+- Dipendenze ripristinate offline dalla cache locale dopo il tentativo di
+  ricostruzione automatica di pnpm. Lockfile invariato.
+- Nessuna chiamata live ai provider, invio di messaggi o deploy. I test AI
+  simulati verificano il contratto, non la qualità di risposte live.
+
+Le verifiche e gli screenshot descritti sotto si riferiscono alla V1 del
+15 settembre, non alla revisione attuale.
+
 Ambiente: Windows, Node.js 24.18.0, pnpm 11.22.0; Next.js 16.3.5, TypeScript 6.0.3.
 
 ## Controlli eseguiti

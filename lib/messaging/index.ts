@@ -40,6 +40,7 @@ export function messageFacts(l: Lead, p: Preferences) {
     listingMissing: has("website_missing"),
     weak: has("weak_website") || has("sparse"),
     sparse: has("sparse"),
+    poor: l.website_quality === "poor" && has("weak_website"),
     ads: has("menu_ads"),
     events: p.events && l.analysis.events_relevant && has("events"),
     products,
@@ -60,9 +61,15 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
     : f.drinks
       ? "la drink list"
       : "il menu";
+  const siteValue = f.products
+    ? "un sito vostro con prodotti foto e contatti tutti in un posto"
+    : f.drinks
+      ? "un sito vostro con la drink list aggiornata foto e contatti tutti in un posto"
+      : "un sito vostro con menu aggiornabile foto e contatti tutti in un posto";
   if (f.unavailable) {
-    observation = "ho provato ad aprire il vostro sito ma non ci sono riuscito";
-    pitch = "posso darvi una mano a capire cosa succede";
+    observation =
+      "ho trovato il vostro sito ma sembra che al momento non funzioni";
+    pitch = "posso darvi una mano a sistemarlo";
   } else if (f.ads) {
     observation = "nel menu online compaiono dei blocchi pubblicitari";
     pitch = f.own
@@ -70,11 +77,13 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
       : "posso farvi una pagina per il menu senza quegli annunci";
   } else if (f.own && f.weak) {
     observation = f.sparse
-      ? "sulla homepage ci sono poche informazioni sul locale"
-      : "vi scrivo per il vostro sito";
+      ? "ho visto il vostro sito e secondo me è un peccato che ci sia così poco dentro"
+      : f.poor
+        ? "stavo guardando il vostro sito e secondo me si potrebbe rendere molto più moderno e curato"
+        : "ho visto il vostro sito e secondo me si potrebbe sistemare meglio";
     pitch = p.restyling
-      ? "posso sistemarlo e aggiornare i contenuti"
-      : "posso aiutarvi ad aggiornare i contenuti";
+      ? "posso rifarlo con menu foto e contatti tutti in un posto"
+      : "posso aggiornarlo con menu foto e contatti tutti in un posto";
   } else if (f.events) {
     observation = "ho visto che organizzate anche serate";
     pitch = f.own
@@ -83,20 +92,15 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
         menu +
         " da aggiornare";
   } else if (f.missing) {
-    observation = "ho cercato un sito vostro ma non l'ho trovato";
-    pitch =
-      "posso farvi una pagina semplice con " + menu + " che aggiornate voi";
+    observation = "cercando su Google non ho trovato un vostro sito";
+    pitch = "posso farvi " + siteValue;
   } else if (f.own) {
     observation = "vi scrivo per il vostro sito";
     pitch = "posso aiutarvi ad aggiornarlo";
   } else {
-    observation = f.listingMissing
-      ? "nella scheda Google non è indicato un sito"
-      : "volevo chiedervi se avete già un sito per il locale";
-    pitch =
-      "se vi manca posso farvene uno semplice con " +
-      menu +
-      " che aggiornate voi";
+    observation =
+      "cercando su Google non sono riuscito a trovare un vostro sito e non so se ne avete già uno";
+    pitch = "se non ne avete già uno posso farvi " + siteValue;
   }
   if (!f.unavailable && (f.missing || f.ads || (f.own && f.weak))) {
     if (f.qr && variant % 2 === 0)
@@ -145,7 +149,7 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
   if (/^ciao,?\s*come va|^(?:salve|buongiorno|gentile)\b/i.test(trimmed))
     return false;
   if (
-    /recension|stelle su google|rating|segno che|considerat|apprezzat|reputazion|punto di riferimento|valorizzare|presenza online|esperienza digitale|\bsoluzione\b|opportunità|\bclientela\b|\bprofessionale\b|ottimizzare|senza impegno|con calma|rendere tutto più comodo|val(?:e|ere) la pena|potrebbe essere (?:comodo|utile)|avere un posto dove|magari con/i.test(
+    /nella scheda Google non è indicato un sito|non risulta (?:un )?sito(?: web)?|il sito non è presente nella scheda|sito semplice|sito base|pagina semplice|recension|stelle su google|rating|segno che|considerat|apprezzat|reputazion|punto di riferimento|valorizzare|presenza online|esperienza digitale|\bsoluzione\b|opportunità|\bclientela\b|\bprofessionale\b|ottimizzare|senza impegno|con calma|rendere tutto più comodo|val(?:e|ere) la pena|potrebbe essere (?:comodo|utile)|avere un posto dove|magari con/i.test(
       trimmed,
     )
   )
@@ -211,7 +215,7 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
     !facts.unavailable &&
     lead.website_status === "own_website" &&
     ["good", "average", "poor"].includes(lead.website_quality) &&
-    (!/restyling|miglior|rived|aggiorn/i.test(text) ||
+    (!/restyling|miglior|rived|aggiorn|modern|curat|sistem|rifar/i.test(text) ||
       /non avete.*sito|senza.*sito|sito nuovo/i.test(text))
   )
     return false;

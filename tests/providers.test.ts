@@ -179,7 +179,7 @@ describe("provider contracts and conservative enrichment", () => {
     vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
     const lead = { ...demoLeads()[0], is_demo: false };
     const text =
-      "Ciao, ho cercato un sito vostro ma non l'ho trovato\nMi occupo di siti per locali della zona e posso farvi una pagina semplice con il menu che aggiornate voi\nVi interesserebbe?";
+      "Ciao, cercando su Google non ho trovato un vostro sito\nMi occupo di siti per locali della zona e posso farvi un sito vostro con menu aggiornabile foto e contatti tutti in un posto\nVi interesserebbe?";
     lead.analysis.evidence.push({
       id: "unreliable",
       kind: "events",

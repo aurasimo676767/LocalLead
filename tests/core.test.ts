@@ -177,11 +177,13 @@ describe("messages and contacts", () => {
       text: "No website field",
     });
     const text = fallbackMessage(lead, defaultPreferences);
-    expect(text).toContain("nella scheda Google non è indicato un sito");
+    expect(text).toContain(
+      "cercando su Google non sono riuscito a trovare un vostro sito",
+    );
     expect(
       messageAllowed(
         text.replace(
-          "nella scheda Google non è indicato un sito",
+          "cercando su Google non sono riuscito a trovare un vostro sito e non so se ne avete già uno",
           "non avete un sito",
         ),
         lead,
@@ -216,14 +218,13 @@ describe("messages and contacts", () => {
       confidence: 0.9,
     });
     const text = fallbackMessage(lead, defaultPreferences);
-    expect(text).toContain("ho provato ad aprire il vostro sito");
+    expect(text).toContain(
+      "ho trovato il vostro sito ma sembra che al momento non funzioni",
+    );
     expect(text).not.toMatch(/restyling|rimetter|offline|QR/);
     expect(
       messageAllowed(
-        text.replace(
-          "darvi una mano a capire cosa succede",
-          "rimettere online il sito",
-        ),
+        text.replace("darvi una mano a sistemarlo", "rimettere online il sito"),
         lead,
         defaultPreferences,
       ),
@@ -280,7 +281,7 @@ describe("messages and contacts", () => {
   });
   it("offers to update an existing weak site in simple language", () => {
     const text = fallbackMessage(demoLeads()[4], defaultPreferences);
-    expect(text).toMatch(/sistemarlo|aggiornare/);
+    expect(text).toMatch(/rifarlo|sistemarlo|aggiornare/);
     expect(text).not.toMatch(/restyling/);
   });
   it("accepts only the requested direct closing questions", () => {
@@ -302,6 +303,62 @@ describe("messages and contacts", () => {
         closing,
       ).toBe(false);
     }
+  });
+  it("turns website states into human observations and concrete value", () => {
+    const none = demoLeads()[0];
+    expect(fallbackMessage(none, defaultPreferences)).toContain(
+      "cercando su Google non ho trovato un vostro sito",
+    );
+    const unknown = base();
+    expect(fallbackMessage(unknown, defaultPreferences)).toContain(
+      "non so se ne avete già uno",
+    );
+    const broken = { ...demoLeads()[4], website_status: "broken" as const };
+    expect(fallbackMessage(broken, defaultPreferences)).toContain(
+      "ho trovato il vostro sito ma sembra che al momento non funzioni",
+    );
+    const poor = {
+      ...demoLeads()[4],
+      analysis: {
+        ...demoLeads()[4].analysis,
+        evidence: demoLeads()[4].analysis.evidence.filter(
+          (e) => e.kind !== "sparse",
+        ),
+      },
+    };
+    expect(fallbackMessage(poor, defaultPreferences)).toContain(
+      "molto più moderno e curato",
+    );
+    expect(fallbackMessage(demoLeads()[4], defaultPreferences)).toContain(
+      "è un peccato che ci sia così poco dentro",
+    );
+  });
+  it("rejects database language and generic site formulas", () => {
+    const lead = demoLeads()[0];
+    const valid = fallbackMessage(lead, defaultPreferences);
+    for (const phrase of [
+      "nella scheda Google non è indicato un sito",
+      "non risulta un sito web",
+      "il sito non è presente nella scheda",
+      "sito semplice",
+      "sito base",
+      "pagina semplice",
+    ]) {
+      expect(
+        messageAllowed(
+          valid.replace(
+            "cercando su Google non ho trovato un vostro sito",
+            phrase,
+          ),
+          lead,
+          defaultPreferences,
+        ),
+        phrase,
+      ).toBe(false);
+    }
+    expect(valid).toMatch(
+      /menu aggiornabile|prodotti foto|drink list aggiornata/,
+    );
   });
   it("makes no pitch for excellent or closed leads", () => {
     expect(fallbackMessage(demoLeads()[5], defaultPreferences)).toBe("");

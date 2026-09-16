@@ -103,11 +103,16 @@ export async function generateOutreachMessage(
       warning: "Bozza locale: verifica il testo prima di usarlo",
     };
   };
-  if (
-    !process.env.OPENAI_API_KEY ||
-    lead.is_demo ||
-    !lead.analysis.evidence.some((e) => e.confidence >= 0.7 && e.url)
-  )
+  const evidence = lead.analysis.evidence
+    .filter((e) => e.confidence >= 0.7 && e.url)
+    .map((e, index) => ({
+      ref: `E${index + 1}`,
+      kind: e.kind,
+      text: e.text,
+      url: e.url,
+      confidence: e.confidence,
+    }));
+  if (!process.env.OPENAI_API_KEY || lead.is_demo || !evidence.length)
     return fallback();
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -122,17 +127,23 @@ export async function generateOutreachMessage(
             role: "user",
             content: JSON.stringify({
               lead: {
-                name: lead.name,
                 category: lead.category,
                 website_status: lead.website_status,
                 website_quality: lead.website_quality,
                 opportunity: lead.opportunity,
-                evidence: lead.analysis.evidence.filter(
-                  (e) => e.confidence >= 0.7 && e.url,
-                ),
+                evidence,
               },
               preferences: prefs,
-              recent: recent.slice(-15),
+              recent: recent
+                .slice(-15)
+                .map((text) =>
+                  text
+                    .replace(
+                      /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi,
+                      "",
+                    )
+                    .replaceAll(lead.name, "il locale"),
+                ),
             }),
           },
         ],
@@ -140,12 +151,7 @@ export async function generateOutreachMessage(
       const parsed = messageSchema.parse(r.output_parsed);
       if (
         !parsed.evidence_ids.length ||
-        parsed.evidence_ids.some(
-          (id) =>
-            !lead.analysis.evidence.some(
-              (e) => e.id === id && e.confidence >= 0.7 && e.url,
-            ),
-        )
+        parsed.evidence_ids.some((id) => !evidence.some((e) => e.ref === id))
       )
         throw new Error("Evidenze assenti");
       if (!messageAllowed(parsed.text, lead, prefs))

@@ -138,6 +138,22 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
 export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
   const trimmed = text.trim();
   const facts = messageFacts(lead, prefs);
+  const normalize = (value: string) =>
+    value
+      .normalize("NFKD")
+      .replace(/\p{M}/gu, "")
+      .toLocaleLowerCase("it")
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim();
+  const normalizedText = normalize(trimmed);
+  const normalizedName = normalize(lead.name);
+  if (
+    /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i.test(
+      trimmed,
+    ) ||
+    (normalizedName.length >= 3 && normalizedText.includes(normalizedName))
+  )
+    return false;
   if (
     facts.unavailable &&
     /restyling|rimetter|ripristin|sito (?:è )?offline|sito nuovo|sito più bello/i.test(

@@ -218,6 +218,21 @@ describe("messages and contacts", () => {
       ),
     ).toBe(false);
   });
+  it("rejects the business name and internal UUIDs in outreach copy", () => {
+    const lead = demoLeads()[0];
+    const text = fallbackMessage(lead, defaultPreferences);
+    expect(messageAllowed(text, lead, defaultPreferences)).toBe(true);
+    expect(
+      messageAllowed(`${text} ${lead.name}`, lead, defaultPreferences),
+    ).toBe(false);
+    expect(
+      messageAllowed(
+        `${text} (7b5f9fc2-e03e-4669-88f0-cd21b3026eb6)`,
+        lead,
+        defaultPreferences,
+      ),
+    ).toBe(false);
+  });
   it("detects identical messages and different content", () => {
     expect(similarity("ciao come va", "ciao come va")).toBe(1);
     expect(similarity("ciao come va", "prodotti forno fresco")).toBe(0);

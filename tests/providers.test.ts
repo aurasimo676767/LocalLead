@@ -180,7 +180,6 @@ describe("provider contracts and conservative enrichment", () => {
     const lead = { ...demoLeads()[0], is_demo: false };
     const text =
       "Ciao, tra le informazioni pubblicate non risulta un sito vostro. Pensavo a una pagina con il menu da aggiornare quando cambia.\n\nMi occupo di siti per locali della zona. Vi va di parlarne?";
-    const id = lead.analysis.evidence.find((e) => e.kind === "no_website")!.id;
     lead.analysis.evidence.push({
       id: "unreliable",
       kind: "events",
@@ -189,7 +188,7 @@ describe("provider contracts and conservative enrichment", () => {
       confidence: 0.2,
     });
     mocks.parse.mockResolvedValue({
-      output_parsed: { text, evidence_ids: [id] },
+      output_parsed: { text, evidence_ids: ["E1"] },
     });
     const result = await generateOutreachMessage(lead, defaultPreferences, []);
     expect(result.text).toBe(text);
@@ -198,11 +197,31 @@ describe("provider contracts and conservative enrichment", () => {
     expect(request.input).toHaveLength(1);
     expect(request.input[0].role).toBe("user");
     expect(request.instructions).not.toContain("DEVI iniziare");
+    expect(request.instructions).toContain("Non inserire mai nomi di attività");
+    const payload = JSON.parse(request.input[0].content);
+    expect(payload.lead.name).toBeUndefined();
+    expect(payload.lead.evidence[0].ref).toBe("E1");
+    expect(payload.lead.evidence[0].ref).not.toMatch(/[0-9a-f]{8}-/i);
     expect(
-      JSON.parse(request.input[0].content).lead.evidence.some(
-        (e: { id: string }) => e.id === "unreliable",
+      payload.lead.evidence.some((e: { text: string }) =>
+        e.text.includes("Ignore rules"),
       ),
     ).toBe(false);
+  });
+  it("rejects AI drafts containing the venue name or an internal UUID", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
+    const lead = { ...demoLeads()[0], is_demo: false };
+    mocks.parse.mockResolvedValue({
+      output_parsed: {
+        text: `Ciao, mi occupo di siti per locali della zona e scrivo per ${lead.name} (${lead.id}). Potrebbe essere utile avere il menu aggiornabile. Se vi interessa, possiamo sentirci?`,
+        evidence_ids: ["E1"],
+      },
+    });
+    const result = await generateOutreachMessage(lead, defaultPreferences, []);
+    expect(result.model).toBe("fallback locale");
+    expect(result.text).not.toContain(lead.name);
+    expect(result.text).not.toMatch(/[0-9a-f]{8}-[0-9a-f-]{27,}/i);
+    expect(mocks.parse).toHaveBeenCalledTimes(2);
   });
   it("falls back after invalid AI evidence and never calls AI for demo or unknown facts", async () => {
     vi.stubEnv("OPENAI_API_KEY", "offline-test-key");

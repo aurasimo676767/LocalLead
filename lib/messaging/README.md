@@ -15,7 +15,7 @@ Ricostruite dalle modifiche Git, non dalla conversazione originale con Luna:
 - `8cd9be1`: niente complimenti costruiti o linguaggio pubblicitario.
 
 Le vecchie istruzioni sul saluto e sulla lunghezza si contraddicevano. Ora c'è
-un solo prompt: obiettivo 180–450 caratteri, limite 500, 2–3 paragrafi.
+un solo prompt: obiettivo 140–380 caratteri, limite 420, 2–3 righe.
 
 ## Comportamento
 

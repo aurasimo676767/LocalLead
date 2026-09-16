@@ -289,7 +289,7 @@ function Detail({ lead: l }: { lead: Lead }) {
               }
             />
             <div className="message-meta">
-              <span>{text.length} caratteri · ideale 180–450</span>
+              <span>{text.length} caratteri · ideale 140–380</span>
               <span>
                 {l.messages.at(-1)?.model ||
                   (text

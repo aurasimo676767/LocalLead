@@ -61,80 +61,58 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
       ? "la drink list"
       : "il menu";
   if (f.unavailable) {
-    observation =
-      "nel controllo del vostro sito non sono riuscito ad aprirlo. È una cosa temporanea?";
-    pitch = "Se vi serve una mano a verificare cosa succede, possiamo parlarne";
+    observation = "ho provato ad aprire il vostro sito ma non ci sono riuscito";
+    pitch = "posso darvi una mano a capire cosa succede";
   } else if (f.ads) {
     observation = "nel menu online compaiono dei blocchi pubblicitari";
     pitch = f.own
-      ? "Si potrebbe aggiornare il sito mettendoci il menu, senza quegli annunci"
-      : "Si potrebbe mettere il menu su una pagina vostra, senza quegli annunci";
+      ? "posso sistemare il menu sul sito senza quegli annunci"
+      : "posso farvi una pagina per il menu senza quegli annunci";
   } else if (f.own && f.weak) {
     observation = f.sparse
-      ? "dalla homepage si leggono poche informazioni sul locale"
-      : "vi scrivo per capire se state pensando a qualche aggiornamento del sito";
+      ? "sulla homepage ci sono poche informazioni sul locale"
+      : "vi scrivo per il vostro sito";
     pitch = p.restyling
-      ? "Si potrebbe fare un piccolo restyling per aggiornare i contenuti"
-      : "Si potrebbero aggiornare i contenuti del sito";
+      ? "posso sistemarlo e aggiornare i contenuti"
+      : "posso aiutarvi ad aggiornare i contenuti";
   } else if (f.events) {
     observation = "ho visto che organizzate anche serate";
     pitch = f.own
-      ? "Si potrebbe aggiornare il sito con le prossime date"
-      : "Ci starebbe una pagina con le prossime date e " +
+      ? "posso aggiungere una parte semplice con le prossime date"
+      : "posso farvi una pagina con le prossime date e " +
         menu +
         " da aggiornare";
   } else if (f.missing) {
     observation = "ho cercato un sito vostro ma non l'ho trovato";
     pitch =
-      "Se vi serve, si può fare una pagina semplice con " +
-      menu +
-      " che aggiornate voi";
+      "posso farvi una pagina semplice con " + menu + " che aggiornate voi";
   } else if (f.own) {
-    observation =
-      "vi scrivo per sapere se state pensando ad aggiornare il vostro sito";
-    pitch =
-      "Mi occupo di siti per locali" +
-      (p.local ? " della zona" : "") +
-      " e volevo capire se avete già qualcosa in mente";
+    observation = "vi scrivo per il vostro sito";
+    pitch = "posso aiutarvi ad aggiornarlo";
   } else {
     observation = f.listingMissing
-      ? "nella scheda Google non è indicato un sito. Ne avete già uno dove trovare " +
-        menu +
-        "?"
-      : "avete già un sito dove trovare " +
-        menu +
-        " e le informazioni del locale?";
+      ? "nella scheda Google non è indicato un sito"
+      : "volevo chiedervi se avete già un sito per il locale";
     pitch =
-      "Mi occupo di siti per locali" +
-      (p.local ? " della zona" : "") +
-      ": se è una cosa a cui state pensando, possiamo parlarne";
+      "se vi manca posso farvene uno semplice con " +
+      menu +
+      " che aggiornate voi";
   }
   if (!f.unavailable && (f.missing || f.ads || (f.own && f.weak))) {
     if (f.qr && variant % 2 === 0)
-      pitch += ", con un QR per aprire il menu al tavolo";
-    else if (f.ads || (f.own && f.weak))
-      pitch += ". Potreste aggiornare " + menu + " quando serve";
+      pitch += " e un QR per aprire il menu al tavolo";
+    else if (f.ads) pitch += " e lasciare il menu facile da aggiornare";
   }
   const identity =
     "Mi occupo di siti per locali" + (p.local ? " della zona" : "");
-  const ctas =
-    p.tone === "neutro"
-      ? [
-          "Vi interessa parlarne?",
-          "Se vi interessa, possiamo sentirci.",
-          "È qualcosa che state valutando?",
-        ]
-      : [
-          "Vi va di parlarne?",
-          "Se vi interessa, ci sentiamo.",
-          "Ci possiamo sentire?",
-        ];
-  const intro =
-    greeting + ", " + observation + (/[?.]$/.test(observation) ? "" : ".");
-  if (pitch.startsWith("Mi occupo")) return intro + "\n\n" + pitch + ".";
-  if (variant % 3 === 1)
-    return intro + "\n\n" + identity + ". " + pitch + ". " + ctas[variant % 3];
-  return intro + "\n\n" + pitch + ".\n\n" + identity + ". " + ctas[variant % 3];
+  const ctas = [
+    "Vi interesserebbe?",
+    "Potrebbe interessarvi?",
+    "Che ne pensate?",
+    "Può interessarvi?",
+    "Vi potrebbe interessare una cosa del genere?",
+  ];
+  return `${greeting}, ${observation}\n${identity} e ${pitch}\n${ctas[variant % ctas.length]}`;
 }
 export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
   const trimmed = text.trim();
@@ -172,18 +150,31 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
     )
   )
     return false;
-  if (trimmed.split(/\n\s*\n/).filter(Boolean).length > 3) return false;
+  const lines = trimmed.split(/\n/).filter((line) => line.trim());
+  if (
+    lines.length < 2 ||
+    lines.length > 3 ||
+    lines.some((line) => line.length > 220)
+  )
+    return false;
   if (
     !/(realizzo|mi occupo|faccio|creo|costruisco|sviluppo)/i.test(text) ||
     !/sit[oi]/i.test(text)
   )
     return false;
   if (
-    !/(sentir|sentiamo|parlar|interess|se vi va|state valutando|in mente)/i.test(
-      text,
+    !/(vi interesserebbe|potrebbe interessarvi|che ne pensate|può interessarvi|vi potrebbe interessare una cosa del genere)\?$/i.test(
+      trimmed,
     )
   )
     return false;
+  if (
+    /ti va di parlarne|se vi va ne parliamo|possiamo sentirci|resto a disposizione|senza impegno/i.test(
+      trimmed,
+    )
+  )
+    return false;
+  if ((trimmed.match(/[,;:]/g) || []).length > 2) return false;
   if (
     !lead.analysis.evidence.some(
       (e) => e.kind === "curated_social" && e.confidence >= 0.7,
@@ -201,8 +192,8 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
   )
     return false;
   if (
-    text.length < 160 ||
-    text.length > 500 ||
+    text.length < 140 ||
+    text.length > 420 ||
     /prenotazion|gentile attività|le scrivo per proporle|leader nel settore|soluzioni digitali|potenziare.*business|massimizzare|incrementare.*presenza online|!|\p{Extended_Pictographic}/iu.test(
       text,
     )

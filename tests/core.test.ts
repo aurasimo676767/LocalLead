@@ -159,6 +159,11 @@ describe("messages and contacts", () => {
             expect(text).not.toMatch(
               /ho visto (?:il vostro menu|le foto)|guardando.*profilo/,
             );
+            expect(text.split("\n")).toHaveLength(3);
+            expect(text.match(/[,;:]/g)?.length || 0).toBeLessThanOrEqual(2);
+            expect(text).toMatch(
+              /(Vi interesserebbe|Potrebbe interessarvi|Che ne pensate|Può interessarvi|Vi potrebbe interessare una cosa del genere)\?$/,
+            );
           }
         }
   });
@@ -172,10 +177,13 @@ describe("messages and contacts", () => {
       text: "No website field",
     });
     const text = fallbackMessage(lead, defaultPreferences);
-    expect(text).toContain("Ne avete già uno");
+    expect(text).toContain("nella scheda Google non è indicato un sito");
     expect(
       messageAllowed(
-        text.replace("Ne avete già uno", "non avete un sito"),
+        text.replace(
+          "nella scheda Google non è indicato un sito",
+          "non avete un sito",
+        ),
         lead,
         defaultPreferences,
       ),
@@ -208,11 +216,14 @@ describe("messages and contacts", () => {
       confidence: 0.9,
     });
     const text = fallbackMessage(lead, defaultPreferences);
-    expect(text).toContain("temporanea?");
+    expect(text).toContain("ho provato ad aprire il vostro sito");
     expect(text).not.toMatch(/restyling|rimetter|offline|QR/);
     expect(
       messageAllowed(
-        text.replace("verificare cosa succede", "rimettere online il sito"),
+        text.replace(
+          "darvi una mano a capire cosa succede",
+          "rimettere online il sito",
+        ),
         lead,
         defaultPreferences,
       ),
@@ -267,10 +278,31 @@ describe("messages and contacts", () => {
       fallbackMessage(demoLeads()[2], { ...defaultPreferences, events: false }),
     ).not.toMatch(/serate|eventi/);
   });
-  it("pitches restyling for an existing weak site", () =>
-    expect(fallbackMessage(demoLeads()[4], defaultPreferences)).toContain(
-      "restyling",
-    ));
+  it("offers to update an existing weak site in simple language", () => {
+    const text = fallbackMessage(demoLeads()[4], defaultPreferences);
+    expect(text).toMatch(/sistemarlo|aggiornare/);
+    expect(text).not.toMatch(/restyling/);
+  });
+  it("accepts only the requested direct closing questions", () => {
+    const lead = demoLeads()[0];
+    const text = fallbackMessage(lead, defaultPreferences);
+    for (const closing of [
+      "Ti va di parlarne?",
+      "Se vi va ne parliamo",
+      "Possiamo sentirci?",
+      "Resto a disposizione",
+      "Senza impegno",
+    ]) {
+      expect(
+        messageAllowed(
+          text.replace(/[^\n]+$/, closing),
+          lead,
+          defaultPreferences,
+        ),
+        closing,
+      ).toBe(false);
+    }
+  });
   it("makes no pitch for excellent or closed leads", () => {
     expect(fallbackMessage(demoLeads()[5], defaultPreferences)).toBe("");
     expect(fallbackMessage(demoLeads()[6], defaultPreferences)).toBe("");

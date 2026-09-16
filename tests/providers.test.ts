@@ -179,7 +179,7 @@ describe("provider contracts and conservative enrichment", () => {
     vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
     const lead = { ...demoLeads()[0], is_demo: false };
     const text =
-      "Ciao, tra le informazioni pubblicate non risulta un sito vostro. Pensavo a una pagina con il menu da aggiornare quando cambia.\n\nMi occupo di siti per locali della zona. Vi va di parlarne?";
+      "Ciao, ho cercato un sito vostro ma non l'ho trovato\nMi occupo di siti per locali della zona e posso farvi una pagina semplice con il menu che aggiornate voi\nVi interesserebbe?";
     lead.analysis.evidence.push({
       id: "unreliable",
       kind: "events",
@@ -198,6 +198,7 @@ describe("provider contracts and conservative enrichment", () => {
     expect(request.input[0].role).toBe("user");
     expect(request.instructions).not.toContain("DEVI iniziare");
     expect(request.instructions).toContain("Non inserire mai nomi di attività");
+    expect(request.instructions).toContain("Chiudi usando esattamente");
     const payload = JSON.parse(request.input[0].content);
     expect(payload.lead.name).toBeUndefined();
     expect(payload.lead.evidence[0].ref).toBe("E1");

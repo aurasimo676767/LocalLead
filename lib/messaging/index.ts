@@ -84,10 +84,11 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
         menu +
         " da aggiornare";
   } else if (f.missing) {
-    observation =
-      "tra le informazioni pubblicate non ho trovato un sito vostro";
+    observation = "ho cercato un sito vostro ma non l'ho trovato";
     pitch =
-      "Pensavo a un sito con " + menu + ", facile da aggiornare quando serve";
+      "Se vi serve, si può fare una pagina semplice con " +
+      menu +
+      " che aggiornate voi";
   } else if (f.own) {
     observation =
       "vi scrivo per sapere se state pensando ad aggiornare il vostro sito";
@@ -151,6 +152,7 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
     /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i.test(
       trimmed,
     ) ||
+    /\bE\s*\d+\b/i.test(trimmed) ||
     (normalizedName.length >= 3 && normalizedText.includes(normalizedName))
   )
     return false;
@@ -165,7 +167,7 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
   if (/^ciao,?\s*come va|^(?:salve|buongiorno|gentile)\b/i.test(trimmed))
     return false;
   if (
-    /punto di riferimento|ottima reputazione|complimenti per le recensioni|valorizzare|presenza online|esperienza digitale|\bsoluzione\b|opportunità|\bclientela\b|\bprofessionale\b|ottimizzare|senza impegno|con calma|rendere tutto più comodo/i.test(
+    /recension|stelle su google|rating|segno che|considerat|apprezzat|reputazion|punto di riferimento|valorizzare|presenza online|esperienza digitale|\bsoluzione\b|opportunità|\bclientela\b|\bprofessionale\b|ottimizzare|senza impegno|con calma|rendere tutto più comodo|val(?:e|ere) la pena|potrebbe essere (?:comodo|utile)|avere un posto dove|magari con/i.test(
       trimmed,
     )
   )

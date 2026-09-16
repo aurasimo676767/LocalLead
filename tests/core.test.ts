@@ -233,6 +233,24 @@ describe("messages and contacts", () => {
       ),
     ).toBe(false);
   });
+  it("rejects leaked evidence labels and artificial review compliments", () => {
+    const lead = demoLeads()[0];
+    const text =
+      "Ciao, mi occupo di siti per locali della zona. Ho visto che su Google non si trova un sito ufficiale, ma ci sono molte recensioni, segno che siete molto considerati in zona (E2). Se non ne avete ancora uno, potrebbe valere la pena pensarci per avere un posto dove aggiornare il menu. Ti va di parlarne?";
+    expect(messageAllowed(text, lead, defaultPreferences)).toBe(false);
+    for (const phrase of [
+      "molte recensioni",
+      "segno che siete apprezzati",
+      "potrebbe valere la pena",
+      "potrebbe essere utile",
+      "magari con un QR",
+    ]) {
+      const candidate = `${fallbackMessage(lead, defaultPreferences)} ${phrase}`;
+      expect(messageAllowed(candidate, lead, defaultPreferences), phrase).toBe(
+        false,
+      );
+    }
+  });
   it("detects identical messages and different content", () => {
     expect(similarity("ciao come va", "ciao come va")).toBe(1);
     expect(similarity("ciao come va", "prodotti forno fresco")).toBe(0);

@@ -21,6 +21,7 @@ un solo prompt: obiettivo 180–450 caratteri, limite 500, 2–3 paragrafi.
 
 - Una sola osservazione documentata, collegata a un'idea concreta.
 - Il messaggio non contiene il nome del locale, UUID o altri ID interni.
+- Recensioni, stelle e popolarità non vengono passate all'AI né usate nel testo.
 - Fonti con affidabilità almeno 70%; niente visite, foto o menu visti inventati.
 - Un link mancante su Google non dimostra che il sito non esista.
 - Un controllo fallito non dimostra un'interruzione per tutti: si chiede se il

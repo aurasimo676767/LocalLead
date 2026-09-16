@@ -76,6 +76,15 @@ const messageSchema = z.object({
   text: z.string(),
   evidence_ids: z.array(z.string()),
 });
+const outreachEvidenceKinds = new Set([
+  "no_website",
+  "website_missing",
+  "website_unreachable",
+  "weak_website",
+  "sparse",
+  "menu_ads",
+  "events",
+]);
 export async function generateOutreachMessage(
   lead: Lead,
   prefs: Preferences,
@@ -104,7 +113,9 @@ export async function generateOutreachMessage(
     };
   };
   const evidence = lead.analysis.evidence
-    .filter((e) => e.confidence >= 0.7 && e.url)
+    .filter(
+      (e) => outreachEvidenceKinds.has(e.kind) && e.confidence >= 0.7 && e.url,
+    )
     .map((e, index) => ({
       ref: `E${index + 1}`,
       kind: e.kind,
@@ -134,16 +145,6 @@ export async function generateOutreachMessage(
                 evidence,
               },
               preferences: prefs,
-              recent: recent
-                .slice(-15)
-                .map((text) =>
-                  text
-                    .replace(
-                      /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi,
-                      "",
-                    )
-                    .replaceAll(lead.name, "il locale"),
-                ),
             }),
           },
         ],

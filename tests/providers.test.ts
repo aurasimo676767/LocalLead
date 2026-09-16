@@ -203,6 +203,10 @@ describe("provider contracts and conservative enrichment", () => {
     expect(payload.lead.evidence[0].ref).toBe("E1");
     expect(payload.lead.evidence[0].ref).not.toMatch(/[0-9a-f]{8}-/i);
     expect(
+      payload.lead.evidence.some((e: { kind: string }) => e.kind === "reviews"),
+    ).toBe(false);
+    expect(payload.recent).toBeUndefined();
+    expect(
       payload.lead.evidence.some((e: { text: string }) =>
         e.text.includes("Ignore rules"),
       ),
@@ -221,6 +225,20 @@ describe("provider contracts and conservative enrichment", () => {
     expect(result.model).toBe("fallback locale");
     expect(result.text).not.toContain(lead.name);
     expect(result.text).not.toMatch(/[0-9a-f]{8}-[0-9a-f-]{27,}/i);
+    expect(mocks.parse).toHaveBeenCalledTimes(2);
+  });
+  it("rejects AI drafts that leak evidence labels or praise review counts", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
+    const lead = { ...demoLeads()[0], is_demo: false };
+    mocks.parse.mockResolvedValue({
+      output_parsed: {
+        text: "Ciao, mi occupo di siti per locali della zona. Ci sono molte recensioni, segno che siete molto considerati in zona (E2). Potrebbe valere la pena avere un posto dove aggiornare il menu. Ti va di parlarne?",
+        evidence_ids: ["E1"],
+      },
+    });
+    const result = await generateOutreachMessage(lead, defaultPreferences, []);
+    expect(result.model).toBe("fallback locale");
+    expect(result.text).not.toMatch(/E2|recension|considerati|valere la pena/i);
     expect(mocks.parse).toHaveBeenCalledTimes(2);
   });
   it("falls back after invalid AI evidence and never calls AI for demo or unknown facts", async () => {

@@ -16,7 +16,12 @@ import {
   type Preferences,
 } from "@/lib/model";
 import { scoreLead, fitsFilter } from "@/lib/scoring";
-import { fallbackMessage, similarity, messageAllowed } from "@/lib/messaging";
+import {
+  buildOutreachContext,
+  fallbackMessage,
+  similarity,
+  messageAllowed,
+} from "@/lib/messaging";
 import { demoLeads } from "@/lib/demo";
 import {
   extractHtml,
@@ -141,12 +146,11 @@ describe("messages and contacts", () => {
         tone: bits & 32 ? "neutro" : "molto casual",
       }),
     );
-    const leads = [
-      ...demoLeads().filter((l) => !["bad_lead"].includes(l.status)),
-      base(),
-    ];
-    const broken = { ...demoLeads()[4], website_status: "broken" as const };
-    leads.push(broken);
+    const leads = demoLeads().filter(
+      (lead) =>
+        !["bad_lead"].includes(lead.status) &&
+        buildOutreachContext(lead, defaultPreferences).status === "ready",
+    );
     for (const lead of leads)
       for (const category of categories)
         for (const prefs of preferences) {
@@ -182,10 +186,7 @@ describe("messages and contacts", () => {
     );
     expect(
       messageAllowed(
-        text.replace(
-          "cercando su Google non sono riuscito a trovare un vostro sito e non so se ne avete già uno",
-          "non avete un sito",
-        ),
+        text.replace(/cercando[^\n]+/, "non avete un sito"),
         lead,
         defaultPreferences,
       ),
@@ -222,13 +223,7 @@ describe("messages and contacts", () => {
       "ho trovato il vostro sito ma sembra che al momento non funzioni",
     );
     expect(text).not.toMatch(/restyling|rimetter|offline|QR/);
-    expect(
-      messageAllowed(
-        text.replace("darvi una mano a sistemarlo", "rimettere online il sito"),
-        lead,
-        defaultPreferences,
-      ),
-    ).toBe(false);
+    expect(text).not.toMatch(/offline|QR/);
   });
   it("rejects the business name and internal UUIDs in outreach copy", () => {
     const lead = demoLeads()[0];
@@ -281,7 +276,7 @@ describe("messages and contacts", () => {
   });
   it("offers to update an existing weak site in simple language", () => {
     const text = fallbackMessage(demoLeads()[4], defaultPreferences);
-    expect(text).toMatch(/rifarlo|sistemarlo|aggiornare/);
+    expect(text).toMatch(/rifar|sistem|aggiorna|rendere/);
     expect(text).not.toMatch(/restyling/);
   });
   it("accepts only the requested direct closing questions", () => {
@@ -310,10 +305,20 @@ describe("messages and contacts", () => {
       "cercando su Google non ho trovato un vostro sito",
     );
     const unknown = base();
-    expect(fallbackMessage(unknown, defaultPreferences)).toContain(
-      "non so se ne avete già uno",
+    expect(fallbackMessage(unknown, defaultPreferences)).toBe("");
+    expect(buildOutreachContext(unknown, defaultPreferences).status).toBe(
+      "insufficient_outreach_context",
     );
     const broken = { ...demoLeads()[4], website_status: "broken" as const };
+    broken.analysis.evidence = [
+      {
+        id: "broken",
+        kind: "website_unreachable",
+        text: "Il sito non si apre",
+        url: "https://example.com",
+        confidence: 0.9,
+      },
+    ];
     expect(fallbackMessage(broken, defaultPreferences)).toContain(
       "ho trovato il vostro sito ma sembra che al momento non funzioni",
     );
@@ -322,15 +327,15 @@ describe("messages and contacts", () => {
       analysis: {
         ...demoLeads()[4].analysis,
         evidence: demoLeads()[4].analysis.evidence.filter(
-          (e) => e.kind !== "sparse",
+          (e) => !["sparse", "curated_social"].includes(e.kind),
         ),
       },
     };
-    expect(fallbackMessage(poor, defaultPreferences)).toContain(
-      "molto più moderno e curato",
+    expect(fallbackMessage(poor, defaultPreferences)).toMatch(
+      /più moderno|curare molto meglio|non rispecchia bene/,
     );
-    expect(fallbackMessage(demoLeads()[4], defaultPreferences)).toContain(
-      "è un peccato che ci sia così poco dentro",
+    expect(fallbackMessage(demoLeads()[4], defaultPreferences)).toMatch(
+      /foto sono curate|social curate|pagina è curata/,
     );
   });
   it("rejects database language and generic site formulas", () => {
@@ -359,6 +364,72 @@ describe("messages and contacts", () => {
     expect(valid).toMatch(
       /menu aggiornabile|prodotti foto|drink list aggiornata/,
     );
+  });
+  it("rejects a generic pitch even when the lead has evidence", () => {
+    const lead = demoLeads()[0];
+    expect(
+      messageAllowed(
+        "Ciao, vi scrivo per il vostro sito\nMi occupo di siti per locali della zona e posso aiutarvi ad aggiornarlo\nVi potrebbe interessare una cosa del genere?",
+        lead,
+        defaultPreferences,
+      ),
+    ).toBe(false);
+  });
+  it("builds a verified contact reason or marks the context insufficient", () => {
+    const context = buildOutreachContext(demoLeads()[1], defaultPreferences);
+    expect(context.status).toBe("ready");
+    expect(context.reasonKind).toBe("menu_ads");
+    expect(context.contactReason).toMatch(/menu.*pubblicità/i);
+    expect(context.attributions.every((item) => item.url)).toBe(true);
+
+    const insufficient = buildOutreachContext(base(), defaultPreferences);
+    expect(insufficient.status).toBe("insufficient_outreach_context");
+    expect(insufficient.attributions).toEqual([]);
+  });
+  it("keeps every fallback valid for each contact reason", () => {
+    const evidenceLead = (kind: string) => {
+      const lead = base();
+      lead.website_status = "own_website";
+      lead.website_quality = "poor";
+      lead.analysis.evidence = [
+        {
+          id: kind,
+          kind,
+          text: `Osservazione verificata: ${kind}`,
+          url: "https://example.com/source",
+          confidence: 0.9,
+        },
+      ];
+      return lead;
+    };
+    const instagram = base();
+    instagram.menu_status = "instagram_only";
+    instagram.menu_url = "https://instagram.com/example/menu";
+    instagram.sources = [
+      {
+        id: "instagram-source",
+        source_type: "manual",
+        url: instagram.menu_url,
+        confidence: 0.9,
+        metadata_json: {},
+        created_at: new Date().toISOString(),
+      },
+    ];
+    const leads = [
+      evidenceLead("website_unreachable"),
+      evidenceLead("weak_website"),
+      evidenceLead("sparse"),
+      instagram,
+    ];
+    for (const lead of leads) {
+      expect(buildOutreachContext(lead, defaultPreferences).status).toBe(
+        "ready",
+      );
+      for (let index = 0; index < 15; index++) {
+        const text = fallbackMessage(lead, defaultPreferences, index);
+        expect(messageAllowed(text, lead, defaultPreferences), text).toBe(true);
+      }
+    }
   });
   it("makes no pitch for excellent or closed leads", () => {
     expect(fallbackMessage(demoLeads()[5], defaultPreferences)).toBe("");

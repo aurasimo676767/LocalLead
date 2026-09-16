@@ -3,7 +3,12 @@ import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { contactable, type Lead, type Preferences } from "../model";
-import { fallbackMessage, messageAllowed, similarity } from "../messaging";
+import {
+  buildOutreachContext,
+  fallbackMessage,
+  messageAllowed,
+  similarity,
+} from "../messaging";
 import { outreachInstructions } from "../messaging/prompt";
 const client = () =>
   new OpenAI({
@@ -76,15 +81,8 @@ const messageSchema = z.object({
   text: z.string(),
   evidence_ids: z.array(z.string()),
 });
-const outreachEvidenceKinds = new Set([
-  "no_website",
-  "website_missing",
-  "website_unreachable",
-  "weak_website",
-  "sparse",
-  "menu_ads",
-  "events",
-]);
+const firstLine = (text: string) =>
+  text.trim().split(/\r?\n/, 1)[0].toLocaleLowerCase("it");
 export async function generateOutreachMessage(
   lead: Lead,
   prefs: Preferences,
@@ -94,42 +92,61 @@ export async function generateOutreachMessage(
     throw new Error(
       "Non ci sono opportunità sufficientemente verificate, oppure il lead è escluso",
     );
+  const context = buildOutreachContext(lead, prefs);
+  if (context.status !== "ready")
+    return {
+      text: "",
+      model: "",
+      warning:
+        "Contesto insufficiente: aggiungi un’osservazione verificata prima di generare il messaggio",
+      context,
+    };
+  const previousMessage = lead.messages.at(-1)?.text || "";
+  const comparisons = [...recent, previousMessage].filter(Boolean);
   const start = recent.length + lead.messages.length;
   const fallback = () => {
-    const variants = Array.from({ length: 12 }, (_, i) =>
+    const variants = Array.from({ length: 15 }, (_, i) =>
       fallbackMessage(lead, prefs, start + i),
-    ).filter((text) => messageAllowed(text, lead, prefs));
+    ).filter(
+      (text) =>
+        messageAllowed(text, lead, prefs) &&
+        (!previousMessage || firstLine(text) !== firstLine(previousMessage)) &&
+        comparisons.every((other) => similarity(text, other) <= 0.7),
+    );
     if (!variants.length)
-      throw new Error("Verifica le evidenze prima di generare una bozza");
+      throw new Error(
+        "Non è stato possibile creare una variante abbastanza diversa con le evidenze disponibili",
+      );
     variants.sort(
       (a, b) =>
-        Math.max(0, ...recent.map((r) => similarity(a, r))) -
-        Math.max(0, ...recent.map((r) => similarity(b, r))),
+        Math.max(0, ...comparisons.map((r) => similarity(a, r))) -
+        Math.max(0, ...comparisons.map((r) => similarity(b, r))),
     );
     return {
       text: variants[0],
       model: "fallback locale",
       warning: "Bozza locale: verifica il testo prima di usarlo",
+      context,
     };
   };
-  const evidence = lead.analysis.evidence
-    .filter(
-      (e) => outreachEvidenceKinds.has(e.kind) && e.confidence >= 0.7 && e.url,
-    )
-    .map((e, index) => ({
-      ref: `E${index + 1}`,
-      kind: e.kind,
-      text: e.text,
-      url: e.url,
-      confidence: e.confidence,
-    }));
+  const evidence = context.attributions.map((e, index) => ({
+    ref: `E${index + 1}`,
+    text: e.text,
+    url: e.url,
+    confidence: e.confidence,
+  }));
   if (!process.env.OPENAI_API_KEY || lead.is_demo || !evidence.length)
     return fallback();
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const r = await client().responses.parse({
         model: model(),
-        instructions: outreachInstructions(lead, prefs, attempt),
+        instructions: outreachInstructions(
+          prefs,
+          attempt,
+          context,
+          !!previousMessage,
+        ),
         store: false,
         max_output_tokens: 700,
         text: { format: zodTextFormat(messageSchema, "outreach_message") },
@@ -138,13 +155,25 @@ export async function generateOutreachMessage(
             role: "user",
             content: JSON.stringify({
               lead: {
+                name: lead.name,
                 category: lead.category,
-                website_status: lead.website_status,
-                website_quality: lead.website_quality,
-                opportunity: lead.opportunity,
+                city: lead.city,
+                websiteStatus: lead.website_status,
+                websiteQuality: lead.website_quality,
+                menuStatus: lead.menu_status,
+                contactReason: context.contactReason,
+                verifiedObservations: context.verifiedObservations,
+                websiteIssues: context.websiteIssues,
+                positiveSignals: context.positiveSignals,
+                eventsRelevant:
+                  context.reasonKind === "events_no_website" &&
+                  lead.analysis.events_relevant,
+                suggestedFeatures: context.suggestedFeatures,
+                websiteFeatures: lead.analysis.features,
                 evidence,
               },
               preferences: prefs,
+              previousMessage,
             }),
           },
         ],
@@ -157,9 +186,14 @@ export async function generateOutreachMessage(
         throw new Error("Evidenze assenti");
       if (!messageAllowed(parsed.text, lead, prefs))
         throw new Error("Regole messaggio non rispettate");
-      if (recent.some((t) => similarity(t, parsed.text) > 0.72)) continue;
+      if (
+        (previousMessage &&
+          firstLine(parsed.text) === firstLine(previousMessage)) ||
+        comparisons.some((text) => similarity(text, parsed.text) > 0.7)
+      )
+        continue;
       console.info("[AI] message", { id: lead.id, model: model() });
-      return { text: parsed.text, model: model(), warning: "" };
+      return { text: parsed.text, model: model(), warning: "", context };
     } catch {
       console.warn("[AI] message fallback", { id: lead.id, attempt });
     }

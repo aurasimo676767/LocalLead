@@ -16,6 +16,7 @@ import { enrichLead } from "@/lib/enrichment";
 import { analyzeLead, generateOutreachMessage } from "@/lib/ai";
 import { duplicate } from "@/lib/utils";
 import { scoreLead } from "@/lib/scoring";
+import { buildOutreachContext } from "@/lib/messaging";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 class HttpError extends Error {
@@ -168,6 +169,9 @@ export async function POST(req: NextRequest) {
     }
     if (body.action === "message") {
       const { preferences } = await getWorkspace(db, user.id);
+      const context = buildOutreachContext(lead, preferences);
+      lead.analysis.outreach_context = context.status;
+      lead.analysis.contact_reason = context.contactReason;
       const { data: recent, error } = await db
         .from("messages")
         .select("text")
@@ -180,13 +184,14 @@ export async function POST(req: NextRequest) {
         (recent || []).map((m) => m.text).reverse(),
       );
       warning = generated.warning;
-      lead.messages.push({
-        id: uid(),
-        message_type: "outreach",
-        text: generated.text,
-        model: generated.model,
-        created_at: now(),
-      });
+      if (generated.text)
+        lead.messages.push({
+          id: uid(),
+          message_type: "outreach",
+          text: generated.text,
+          model: generated.model,
+          created_at: now(),
+        });
     }
     if (body.action === "save_message") {
       const text = z

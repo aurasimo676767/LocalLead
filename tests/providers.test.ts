@@ -5,6 +5,7 @@ import { enrichLead } from "@/lib/enrichment";
 import { generateOutreachMessage } from "@/lib/ai";
 import { newLead, defaultPreferences } from "@/lib/model";
 import { demoLeads } from "@/lib/demo";
+import { fallbackMessage, similarity } from "@/lib/messaging";
 const mocks = vi.hoisted(() => ({
   providerJson: vi.fn(),
   publicHtml: vi.fn(),
@@ -200,7 +201,11 @@ describe("provider contracts and conservative enrichment", () => {
     expect(request.instructions).toContain("Non inserire mai nomi di attività");
     expect(request.instructions).toContain("Chiudi usando esattamente");
     const payload = JSON.parse(request.input[0].content);
-    expect(payload.lead.name).toBeUndefined();
+    expect(payload.lead.name).toBe(lead.name);
+    expect(payload.lead.contactReason).toContain("non ho trovato");
+    expect(payload.lead.verifiedObservations.length).toBeGreaterThan(0);
+    expect(payload.lead.suggestedFeatures).toContain("QR code");
+    expect(payload.previousMessage).toBe("");
     expect(payload.lead.evidence[0].ref).toBe("E1");
     expect(payload.lead.evidence[0].ref).not.toMatch(/[0-9a-f]{8}-/i);
     expect(
@@ -226,7 +231,7 @@ describe("provider contracts and conservative enrichment", () => {
     expect(result.model).toBe("fallback locale");
     expect(result.text).not.toContain(lead.name);
     expect(result.text).not.toMatch(/[0-9a-f]{8}-[0-9a-f-]{27,}/i);
-    expect(mocks.parse).toHaveBeenCalledTimes(2);
+    expect(mocks.parse).toHaveBeenCalledTimes(3);
   });
   it("rejects AI drafts that leak evidence labels or praise review counts", async () => {
     vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
@@ -240,7 +245,43 @@ describe("provider contracts and conservative enrichment", () => {
     const result = await generateOutreachMessage(lead, defaultPreferences, []);
     expect(result.model).toBe("fallback locale");
     expect(result.text).not.toMatch(/E2|recension|considerati|valere la pena/i);
+    expect(mocks.parse).toHaveBeenCalledTimes(3);
+  });
+  it("regenerates the whole message when the first draft repeats the previous one", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
+    const lead = { ...demoLeads()[0], is_demo: false };
+    const previous = fallbackMessage(lead, defaultPreferences, 0);
+    const different = fallbackMessage(lead, defaultPreferences, 2);
+    lead.messages = [
+      {
+        id: "previous",
+        message_type: "outreach",
+        text: previous,
+        model: "test",
+        created_at: new Date().toISOString(),
+      },
+    ];
+    mocks.parse
+      .mockResolvedValueOnce({
+        output_parsed: { text: previous, evidence_ids: ["E1"] },
+      })
+      .mockResolvedValueOnce({
+        output_parsed: { text: different, evidence_ids: ["E1"] },
+      });
+
+    const result = await generateOutreachMessage(lead, defaultPreferences, []);
+
+    expect(result.text).toBe(different);
+    expect(result.text.split("\n")[0]).not.toBe(previous.split("\n")[0]);
+    expect(similarity(result.text, previous)).toBeLessThanOrEqual(0.7);
     expect(mocks.parse).toHaveBeenCalledTimes(2);
+    const secondRequest = mocks.parse.mock.calls[1][0];
+    expect(secondRequest.instructions).toContain(
+      "Non limitarti a cambiare la CTA",
+    );
+    const payload = JSON.parse(secondRequest.input[0].content);
+    expect(payload.previousMessage).toBe(previous);
+    expect(payload.lead.contactReason).toBeTruthy();
   });
   it("falls back after invalid AI evidence and never calls AI for demo or unknown facts", async () => {
     vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
@@ -253,14 +294,16 @@ describe("provider contracts and conservative enrichment", () => {
       [],
     );
     expect(result.model).toBe("fallback locale");
-    expect(mocks.parse).toHaveBeenCalledTimes(2);
+    expect(mocks.parse).toHaveBeenCalledTimes(3);
     mocks.parse.mockClear();
     await generateOutreachMessage(demoLeads()[0], defaultPreferences, []);
-    await generateOutreachMessage(
+    const insufficient = await generateOutreachMessage(
       newLead({ name: "Test", city: "Ragusa", category: "Bar" }),
       defaultPreferences,
       [],
     );
+    expect(insufficient.text).toBe("");
+    expect(insufficient.context.status).toBe("insufficient_outreach_context");
     expect(mocks.parse).not.toHaveBeenCalled();
   });
 });

@@ -23,7 +23,12 @@ import { manualSources, patchLead } from "@/lib/lead-actions";
 import { inputSchema, discoverySchema } from "@/lib/validation";
 import { duplicate } from "@/lib/utils";
 import { scoreLead } from "@/lib/scoring";
-import { fallbackMessage, similarity } from "@/lib/messaging";
+import {
+  buildOutreachContext,
+  fallbackMessage,
+  messageAllowed,
+  similarity,
+} from "@/lib/messaging";
 type Result = {
   lead?: Lead;
   duplicate?: boolean;
@@ -170,22 +175,47 @@ export function WorkspaceProvider({
           throw new Error(
             "Verifica prima un’opportunità concreta e i canali di contatto",
           );
+        const context = buildOutreachContext(l, current.preferences);
+        l.analysis.outreach_context = context.status;
+        l.analysis.contact_reason = context.contactReason;
         const recent = current.leads
           .flatMap((x) => x.messages)
           .sort((a, b) => b.created_at.localeCompare(a.created_at))
           .slice(0, 15)
           .map((m) => m.text);
-        const variants = Array.from({ length: 8 }, (_, i) =>
+        const previous = l.messages.at(-1)?.text || "";
+        const comparisons = [...recent, previous].filter(Boolean);
+        const firstLine = (text: string) =>
+          text.trim().split(/\r?\n/, 1)[0].toLocaleLowerCase("it");
+        const variants = Array.from({ length: 15 }, (_, i) =>
           fallbackMessage(
             l,
             current.preferences,
             recent.length + l.messages.length + i,
           ),
+        ).filter(
+          (text) =>
+            messageAllowed(text, l, current.preferences) &&
+            (!previous || firstLine(text) !== firstLine(previous)) &&
+            comparisons.every((other) => similarity(text, other) <= 0.7),
         );
+        if (!variants.length) {
+          current.leads[index] = l;
+          result = {
+            lead: l,
+            warning:
+              context.status === "insufficient_outreach_context"
+                ? "Contesto insufficiente: aggiungi un’osservazione verificata prima di generare il messaggio"
+                : "Non è stato possibile creare una variante abbastanza diversa con le evidenze disponibili",
+          };
+          localStorage.setItem(storageKey, JSON.stringify(current));
+          replace(current);
+          return result;
+        }
         variants.sort(
           (a, b) =>
-            Math.max(0, ...recent.map((t) => similarity(a, t))) -
-            Math.max(0, ...recent.map((t) => similarity(b, t))),
+            Math.max(0, ...comparisons.map((t) => similarity(a, t))) -
+            Math.max(0, ...comparisons.map((t) => similarity(b, t))),
         );
         l.messages.push({
           id: uid(),

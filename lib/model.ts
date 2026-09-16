@@ -138,6 +138,8 @@ export type Analysis = {
   screenshot_url: string | null;
   warnings: string[];
   dedup_aliases?: string[];
+  outreach_context?: "ready" | "insufficient_outreach_context";
+  contact_reason?: string;
 };
 export type Lead = {
   id: string;

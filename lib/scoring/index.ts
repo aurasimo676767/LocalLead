@@ -36,7 +36,6 @@ export function scoreLead(lead: Lead): Lead {
     add("curated_social", "Foto curate, presenza web migliorabile", 8);
   if (lead.analysis.events_relevant && !lead.analysis.features?.has_events_page)
     add("events", "Serate reali senza una sezione dedicata", 8);
-  if (lead.reviews_count >= 50) add("reviews", "Almeno 50 recensioni", 5);
   if (lead.website_quality === "good")
     add("good_website", "Sito completo: priorità bassa", -30);
   if (lead.website_quality === "excellent")

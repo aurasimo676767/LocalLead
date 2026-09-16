@@ -24,7 +24,7 @@ import { PageHeading, Score, Status, ErrorText, Field } from "./ui";
 import { LeadForm } from "./lead-form";
 import { statuses, statusLabels, contactable, type Lead } from "@/lib/model";
 import { hotReasons, worthwhile } from "@/lib/scoring";
-import { fallbackMessage } from "@/lib/messaging";
+import { buildOutreachContext, fallbackMessage } from "@/lib/messaging";
 import { safeUrl, whatsappUrl, whatsappCheckUrl } from "@/lib/utils";
 const labels: Record<string, string> = {
   none: "Assente (verificato)",
@@ -114,6 +114,7 @@ function Detail({ lead: l }: { lead: Lead }) {
   );
   const contactDraft = text.trim();
   const blocked = !contactable(l);
+  const outreachReady = buildOutreachContext(l, preferences).status === "ready";
   const canWa =
     !blocked && !!contactDraft && !!whatsappUrl(l, contactDraft) && !l.is_demo;
   const canCheckWa =
@@ -306,7 +307,7 @@ function Detail({ lead: l }: { lead: Lead }) {
                 className="button secondary"
                 title="Crea una bozza personalizzata per questo lead"
                 aria-label={text ? "Rigenera messaggio" : "Genera messaggio"}
-                disabled={task.busy || !contactable(l)}
+                disabled={task.busy || !contactable(l) || !outreachReady}
                 onClick={() =>
                   void task.run(async () => {
                     await saveDraft();
@@ -337,6 +338,12 @@ function Detail({ lead: l }: { lead: Lead }) {
                 <Copy size={15} /> Copia messaggio
               </button>
             </div>
+            {!outreachReady && !blocked && (
+              <p className="muted">
+                Nessun motivo concreto verificato per contattare questo locale.
+                Le recensioni da sole non bastano per generare un messaggio.
+              </p>
+            )}
             <div className="contact-actions">
               <button
                 className="button"

@@ -11,7 +11,7 @@ import {
   normalizePhone,
 } from "../utils";
 import { scoreLead } from "../scoring";
-const ANALYSIS_VERSION = "reachability-v4";
+const ANALYSIS_VERSION = "reachability-v5";
 export async function enrichLead(input: Lead): Promise<Lead> {
   if (input.is_demo) return scoreLead(input);
   const hours = Number(process.env.ANALYSIS_CACHE_HOURS || 72);
@@ -91,22 +91,9 @@ export async function enrichLead(input: Lead): Promise<Lead> {
         const f = extractHtml(page.body, page.url, page.status);
         l.analysis.features = f;
         l.website_quality = classifyWebsite(f);
-        if ([404, 410].includes(f.status)) {
-          l.website_status = "broken";
-          add(
-            "website_unreachable",
-            `Il sito risponde con errore HTTP ${f.status}`,
-            page.url,
-            0.95,
-          );
-          add(
-            "weak_website",
-            `Risposta HTTP ${f.status}; potrebbe essere temporanea o un blocco del crawler`,
-            page.url,
-          );
-        } else if (f.status >= 500) {
+        if (f.status >= 400) {
           throw new Error(
-            `Il sito ha restituito HTTP ${f.status}; potrebbe essere un errore temporaneo o un blocco automatico`,
+            `Il controllo automatico ha ricevuto HTTP ${f.status}; il sito va verificato nel browser`,
           );
         } else if (l.website_quality === "poor")
           add(

@@ -110,6 +110,22 @@ describe("public URL validation", () => {
 describe("scoring and evidence", () => {
   it("unknown data never becomes a hot lead", () =>
     expect(scoreLead(base()).lead_score).toBeLessThan(40));
+  it("never treats review count as an outreach problem", () => {
+    const lead = base();
+    lead.reviews_count = 1321;
+    lead.rating = 4.5;
+    lead.analysis.evidence.push({
+      id: "reviews",
+      kind: "reviews",
+      text: "1321 recensioni su Google Maps",
+      url: "https://maps.google.com/example",
+      confidence: 0.95,
+    });
+    const scored = scoreLead(lead);
+    expect(scored.lead_score).toBeLessThan(40);
+    expect(scored.main_problem).toBe("Nessuna opportunità verificata");
+    expect(scored.analysis.reasons).toEqual([]);
+  });
   it("does not add no-site points without evidence", () =>
     expect(
       scoreLead({ ...base(), website_status: "none" }).analysis.reasons.some(
@@ -209,12 +225,13 @@ describe("messages and contacts", () => {
       /serate|eventi|non risulta/,
     );
   });
-  it("describes a failed site check without diagnosing an outage or proposing restyling", () => {
+  it("describes a manually verified failed site without diagnosing an outage", () => {
     const lead = demoLeads()[4];
+    lead.website_status = "broken";
     lead.analysis.evidence.push({
       id: "timeout",
       kind: "website_unreachable",
-      text: "Il sito risponde con errore HTTP 410",
+      text: "Verifica manuale: il sito mostra una pagina di errore",
       url: lead.website_url,
       confidence: 0.9,
     });
@@ -314,7 +331,7 @@ describe("messages and contacts", () => {
       {
         id: "broken",
         kind: "website_unreachable",
-        text: "Il sito risponde con errore HTTP 410",
+        text: "Verifica manuale: il sito mostra una pagina di errore",
         url: "https://example.com",
         confidence: 0.9,
       },
@@ -389,7 +406,8 @@ describe("messages and contacts", () => {
   it("keeps every fallback valid for each contact reason", () => {
     const evidenceLead = (kind: string) => {
       const lead = base();
-      lead.website_status = "own_website";
+      lead.website_status =
+        kind === "website_unreachable" ? "broken" : "own_website";
       lead.website_quality = "poor";
       lead.analysis.evidence = [
         {
@@ -399,7 +417,7 @@ describe("messages and contacts", () => {
             kind === "weak_website"
               ? "Revisione manuale: sito poco moderno"
               : kind === "website_unreachable"
-                ? "Il sito risponde con errore HTTP 410"
+                ? "Verifica manuale: il sito mostra una pagina di errore"
                 : `Osservazione verificata: ${kind}`,
           url: "https://example.com/source",
           confidence: 0.9,

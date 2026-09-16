@@ -113,7 +113,7 @@ describe("provider contracts and conservative enrichment", () => {
       source_type: "website_analysis",
       url: lead.website_url,
       confidence: 1,
-      metadata_json: { analysis_version: "reachability-v4" },
+      metadata_json: { analysis_version: "reachability-v5" },
       created_at: new Date().toISOString(),
     });
     expect(await enrichLead(lead)).toBe(lead);

@@ -26,7 +26,15 @@ export function LeadList({
     .filter(
       (l) =>
         !isLandlinePhone(l.phone) &&
-        (mode !== "all" || !contacted(l)) &&
+        (mode !== "all" ||
+          ((!contacted(l) || contact === "yes") &&
+            !l.do_not_contact &&
+            ![
+              "archived",
+              "bad_lead",
+              "not_interested",
+              "replied_negative",
+            ].includes(l.status))) &&
         (mode !== "contacted" || contacted(l)) &&
         (mode !== "archive" ||
           l.do_not_contact ||
@@ -146,16 +154,18 @@ export function LeadList({
               <option value="menu">Menu esterno</option>
             </select>
           </Field>
-          <Field label="Contatto">
-            <select
-              value={contact}
-              onChange={(e) => setContact(e.target.value)}
-            >
-              <option value="">Tutti</option>
-              <option value="yes">Già contattati</option>
-              <option value="no">Mai contattati</option>
-            </select>
-          </Field>
+          {mode !== "contacted" && (
+            <Field label="Contatto">
+              <select
+                value={contact}
+                onChange={(e) => setContact(e.target.value)}
+              >
+                <option value="">Tutti</option>
+                <option value="yes">Già contattati</option>
+                <option value="no">Mai contattati</option>
+              </select>
+            </Field>
+          )}
           <Field label="Ordina per">
             <select value={sort} onChange={(e) => setSort(e.target.value)}>
               <option value="score">Score più alto</option>

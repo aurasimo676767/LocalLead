@@ -120,7 +120,7 @@ export function LeadCard({ lead }: { lead: Lead }) {
 }
 export function LeadTable({ leads }: { leads: Lead[] }) {
   return (
-    <div className="table-wrap">
+    <div className="table-wrap lead-table">
       <table>
         <thead>
           <tr>
@@ -134,7 +134,7 @@ export function LeadTable({ leads }: { leads: Lead[] }) {
         <tbody>
           {leads.map((l) => (
             <tr key={l.id}>
-              <td>
+              <td className="lead-table-name">
                 <Link className="table-name" href={`/leads/${l.id}`}>
                   {l.name}
                 </Link>
@@ -143,14 +143,16 @@ export function LeadTable({ leads }: { leads: Lead[] }) {
                   {l.city} · {l.category}
                 </small>
               </td>
-              <td>
+              <td data-label="Score">
                 <Score value={l.lead_score} />
               </td>
-              <td className="opportunity-cell">{l.main_problem}</td>
-              <td>
+              <td data-label="Opportunità" className="opportunity-cell">
+                {l.main_problem}
+              </td>
+              <td data-label="Stato">
                 <Status lead={l} />
               </td>
-              <td>
+              <td className="lead-table-open">
                 <Link aria-label={`Apri ${l.name}`} href={`/leads/${l.id}`}>
                   <ChevronRight size={18} />
                 </Link>

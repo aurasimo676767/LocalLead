@@ -6,6 +6,7 @@ import {
   allLeads,
   getLead,
   getWorkspace,
+  getPreferences,
   saveLead,
 } from "@/lib/supabase/repository";
 import { inputSchema, discoverySchema } from "@/lib/validation";
@@ -95,6 +96,7 @@ export async function POST(req: NextRequest) {
       .object({
         action: z.enum([
           "create",
+          "import",
           "patch",
           "analyze",
           "message",
@@ -153,6 +155,29 @@ export async function POST(req: NextRequest) {
         duplicate: saved.duplicate,
       });
     }
+    if (body.action === "import") {
+      const inputs = z.array(inputSchema).min(1).max(10).parse(body.data);
+      const results = [];
+      const importErrors = [];
+      for (const [index, input] of inputs.entries()) {
+        try {
+          const lead = scoreLead(
+            manualSources(newLead({ ...input, user_id: user.id })),
+          );
+          const saved = await saveLead(db, lead);
+          results.push({
+            lead: await getLead(db, saved.id),
+            duplicate: saved.duplicate,
+          });
+        } catch {
+          importErrors.push({
+            index,
+            error: "Salvataggio non riuscito. Riprova questa riga.",
+          });
+        }
+      }
+      return NextResponse.json({ results, importErrors });
+    }
     if (!body.id) throw new HttpError("ID richiesto", 400);
     const previous = await getLead(db, body.id);
     let lead = structuredClone(previous);
@@ -168,7 +193,7 @@ export async function POST(req: NextRequest) {
       }
     }
     if (body.action === "message") {
-      const { preferences } = await getWorkspace(db, user.id);
+      const preferences = await getPreferences(db, user.id);
       const context = buildOutreachContext(lead, preferences);
       lead.analysis.outreach_context = context.status;
       lead.analysis.contact_reason = context.contactReason;

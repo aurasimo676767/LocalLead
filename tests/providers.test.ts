@@ -113,7 +113,7 @@ describe("provider contracts and conservative enrichment", () => {
       source_type: "website_analysis",
       url: lead.website_url,
       confidence: 1,
-      metadata_json: { analysis_version: "reachability-v2" },
+      metadata_json: { analysis_version: "reachability-v3" },
       created_at: new Date().toISOString(),
     });
     expect(await enrichLead(lead)).toBe(lead);
@@ -161,6 +161,10 @@ describe("provider contracts and conservative enrichment", () => {
     expect(l.analysis.warnings.length).toBeGreaterThan(0);
     expect(
       l.analysis.evidence.some((e) => e.kind === "website_unreachable"),
+    ).toBe(false);
+    expect(fallbackMessage(l, defaultPreferences)).toBe("");
+    expect(
+      l.analysis.evidence.some((e) => e.kind === "website_check_failed"),
     ).toBe(true);
     expect(l.analysis.evidence.some((e) => e.kind === "weak_website")).toBe(
       false,
@@ -175,6 +179,109 @@ describe("provider contracts and conservative enrichment", () => {
     expect(result.model).toBe("fallback locale");
     expect(result.text.length).toBeGreaterThanOrEqual(180);
     expect(result.text.length).toBeLessThanOrEqual(450);
+  });
+  it.each([401, 403, 429])(
+    "does not turn HTTP %i access restrictions into a broken-site pitch",
+    async (status) => {
+      mocks.publicHtml.mockResolvedValue({
+        body: "<html>Access denied</html>",
+        status,
+        url: "https://example.com",
+        type: "text/html",
+      });
+      const lead = await enrichLead(
+        newLead({
+          name: "Locale",
+          city: "Ragusa",
+          category: "Bar",
+          website_url: "https://example.com",
+        }),
+      );
+      expect(lead.website_quality).toBe("unknown");
+      expect(lead.analysis.reasons.some((reason) => reason.points > 0)).toBe(
+        false,
+      );
+      expect(fallbackMessage(lead, defaultPreferences)).toBe("");
+    },
+  );
+  it("refreshes a cached old failure and reads the actual website", async () => {
+    const lead = newLead({
+      name: "Locale",
+      city: "Ragusa",
+      category: "Bar",
+      website_url: "https://example.com",
+    });
+    lead.analysis.analyzed_at = new Date().toISOString();
+    lead.analysis.evidence = [
+      {
+        id: "old-error",
+        kind: "website_unreachable",
+        text: "Il sito indicato non è raggiungibile o non ha restituito una pagina HTML",
+        url: lead.website_url,
+        confidence: 0.9,
+      },
+    ];
+    lead.sources = [
+      {
+        id: "old-check",
+        source_type: "website_analysis",
+        url: lead.website_url,
+        confidence: 0.9,
+        metadata_json: { analysis_version: "reachability-v2" },
+        created_at: new Date().toISOString(),
+      },
+    ];
+    expect(fallbackMessage(lead, defaultPreferences)).toBe("");
+    mocks.publicHtml.mockResolvedValue({
+      body: `<html><head><meta name="viewport" content="width=device-width"></head><body>${"contenuto ".repeat(300)}</body></html>`,
+      status: 200,
+      url: lead.website_url,
+      type: "text/html",
+    });
+    const updated = await enrichLead(lead);
+    expect(mocks.publicHtml).toHaveBeenCalledTimes(1);
+    expect(updated.website_status).toBe("own_website");
+    expect(updated.analysis.features?.word_count).toBe(300);
+    expect(
+      updated.analysis.evidence.some((e) => e.kind === "website_unreachable"),
+    ).toBe(false);
+    expect(updated.sources.some((source) => source.id === "old-check")).toBe(
+      true,
+    );
+  });
+  it("records an actual server error and does not judge the error page as site content", async () => {
+    mocks.publicHtml.mockResolvedValue({
+      body: "<html>Service unavailable</html>",
+      status: 503,
+      url: "https://example.com",
+      type: "text/html",
+    });
+    const lead = await enrichLead(
+      newLead({
+        name: "Locale",
+        city: "Ragusa",
+        category: "Bar",
+        website_url: "https://example.com",
+      }),
+    );
+    expect(lead.website_quality).toBe("broken");
+    expect(fallbackMessage(lead, defaultPreferences)).toContain(
+      "sembra che al momento non funzioni",
+    );
+  });
+  it("returns a fallback immediately after a provider timeout", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
+    const error = new Error("Provider timed out");
+    error.name = "APIConnectionTimeoutError";
+    mocks.parse.mockRejectedValue(error);
+    const result = await generateOutreachMessage(
+      { ...demoLeads()[0], is_demo: false },
+      defaultPreferences,
+      [],
+    );
+    expect(result.model).toBe("fallback locale");
+    expect(mocks.parse).toHaveBeenCalledTimes(1);
+    expect(mocks.parse.mock.calls[0][1].timeout).toBeLessThanOrEqual(10_000);
   });
   it("uses one prompt, excludes unreliable facts and accepts an attributed draft", async () => {
     vi.stubEnv("OPENAI_API_KEY", "offline-test-key");

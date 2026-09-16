@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { useOverlay } from "./use-overlay";
 import {
   LayoutDashboard,
   ScanSearch,
@@ -40,8 +41,25 @@ export function Shell({
   const { config, leads, loading, error, notice, reload } = useWorkspace();
   const [dark, setDark] = useState(false);
   const [open, setOpen] = useState(false);
+  const sidebar = useRef<HTMLElement>(null);
+  const closeMenu = useCallback(() => setOpen(false), []);
+  useOverlay(open, sidebar, closeMenu);
   useEffect(() => {
-    const value = localStorage.getItem("locallead.theme") === "dark";
+    const desktop = window.matchMedia("(min-width: 721px)");
+    const update = () => {
+      if (desktop.matches) closeMenu();
+    };
+    desktop.addEventListener("change", update);
+    return () => desktop.removeEventListener("change", update);
+  }, [closeMenu]);
+  useEffect(() => {
+    let value = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    try {
+      const stored = localStorage.getItem("locallead.theme");
+      if (stored) value = stored === "dark";
+    } catch {
+      /* Theme remains usable when browser storage is unavailable. */
+    }
     document.documentElement.dataset.theme = value ? "dark" : "light";
     const t = setTimeout(() => setDark(value), 0);
     return () => clearTimeout(t);
@@ -50,12 +68,32 @@ export function Shell({
     const value = !dark;
     setDark(value);
     document.documentElement.dataset.theme = value ? "dark" : "light";
-    localStorage.setItem("locallead.theme", value ? "dark" : "light");
+    try {
+      localStorage.setItem("locallead.theme", value ? "dark" : "light");
+    } catch {}
   }
   return (
     <div className="app-shell">
-      <aside className={`sidebar ${open ? "open" : ""}`}>
-        <Link className="brand" href="/dashboard">
+      <a href="#main-content" className="skip-link">
+        Vai al contenuto
+      </a>
+      {open && (
+        <div
+          className="sidebar-backdrop"
+          onClick={closeMenu}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        ref={sidebar}
+        id="workspace-navigation"
+        role={open ? "dialog" : undefined}
+        aria-modal={open || undefined}
+        aria-label="Menu principale"
+        tabIndex={-1}
+        className={`sidebar ${open ? "open" : ""}`}
+      >
+        <Link className="brand" href="/dashboard" onClick={closeMenu}>
           <span className="brand-mark">
             <Sprout size={23} />
           </span>
@@ -63,18 +101,25 @@ export function Shell({
         </Link>
         <button
           className="icon-btn mobile-close"
+          data-overlay-close
           onClick={() => setOpen(false)}
           aria-label="Chiudi menu"
         >
           <X />
         </button>
         <p className="nav-caption">IL TUO WORKSPACE</p>
-        <nav>
+        <nav aria-label="Navigazione principale">
           {nav.map(([href, label, Icon]) => (
             <Link
               onClick={() => setOpen(false)}
               key={href}
               href={href}
+              aria-current={
+                path === href ||
+                (href === "/leads" && path.startsWith("/leads/"))
+                  ? "page"
+                  : undefined
+              }
               className={
                 path === href ||
                 (href === "/leads" && path.startsWith("/leads/"))
@@ -98,7 +143,7 @@ export function Shell({
               <br />
               Inizia una conversazione vera.
             </p>
-            <Link href="/discover">
+            <Link href="/discover" onClick={closeMenu}>
               Esplora le opportunità <ArrowUpRight size={15} />
             </Link>
           </div>
@@ -124,12 +169,14 @@ export function Shell({
           </div>
         </div>
       </aside>
-      <div className="workspace-main">
+      <div className="workspace-main" inert={open}>
         <header className="topbar">
           <div className="breadcrumb">
             <button
               className="icon-btn mobile-toggle"
               aria-label="Apri menu"
+              aria-expanded={open}
+              aria-controls="workspace-navigation"
               onClick={() => setOpen(true)}
             >
               <Menu size={20} />
@@ -165,13 +212,13 @@ export function Shell({
             </Link>
           </div>
         )}
-        <main>
+        <main id="main-content" tabIndex={-1}>
           {loading ? (
             <div className="empty-state">
               <span className="spinner" /> Caricamento del tuo spazio…
             </div>
           ) : error ? (
-            <div className="error-box">
+            <div className="error-box" role="alert">
               {error}
               <button onClick={() => void reload()}>Riprova</button>
             </div>

@@ -28,7 +28,7 @@ import {
   classifyWebsite,
   classifyMenu,
 } from "@/lib/enrichment/html";
-import { patchLead, csvRows } from "@/lib/lead-actions";
+import { patchLead, csvRows, manualSources } from "@/lib/lead-actions";
 const base = () =>
   newLead({ name: "Pizzeria Test", city: "Vittoria", category: "Pizzeria" });
 describe("phone normalization", () => {
@@ -214,7 +214,7 @@ describe("messages and contacts", () => {
     lead.analysis.evidence.push({
       id: "timeout",
       kind: "website_unreachable",
-      text: "Timeout",
+      text: "Il sito risponde con errore HTTP 503",
       url: lead.website_url,
       confidence: 0.9,
     });
@@ -314,7 +314,7 @@ describe("messages and contacts", () => {
       {
         id: "broken",
         kind: "website_unreachable",
-        text: "Il sito non si apre",
+        text: "Il sito risponde con errore HTTP 503",
         url: "https://example.com",
         confidence: 0.9,
       },
@@ -332,7 +332,7 @@ describe("messages and contacts", () => {
       },
     };
     expect(fallbackMessage(poor, defaultPreferences)).toMatch(
-      /più moderno|curare molto meglio|non rispecchia bene/,
+      /poco dentro|pochi contenut|scarno/,
     );
     expect(fallbackMessage(demoLeads()[4], defaultPreferences)).toMatch(
       /foto sono curate|social curate|pagina è curata/,
@@ -395,7 +395,12 @@ describe("messages and contacts", () => {
         {
           id: kind,
           kind,
-          text: `Osservazione verificata: ${kind}`,
+          text:
+            kind === "weak_website"
+              ? "Revisione manuale: sito poco moderno"
+              : kind === "website_unreachable"
+                ? "Il sito risponde con errore HTTP 503"
+                : `Osservazione verificata: ${kind}`,
           url: "https://example.com/source",
           confidence: 0.9,
         },
@@ -540,6 +545,18 @@ describe("website classification", () => {
   });
 });
 describe("CRM and import", () => {
+  it("keeps manual source history across URL edits and status updates", () => {
+    const lead = manualSources({
+      ...base(),
+      website_url: "https://example.com/old",
+    });
+    const original = lead.sources[0];
+    const edited = patchLead(lead, { website_url: "https://example.com/new" });
+    const contacted = patchLead(edited, { status: "contacted" });
+    expect(contacted.sources).toHaveLength(2);
+    expect(contacted.sources[0]).toEqual(original);
+    expect(contacted.sources[1]).toEqual(edited.sources[1]);
+  });
   it("preserves omitted contact fields when changing status", () => {
     const l = {
       ...base(),

@@ -39,17 +39,20 @@ export async function getWorkspace(
   db: SupabaseClient,
   userId: string,
 ): Promise<Workspace> {
-  const leads = await allLeads(db);
+  const [leads, preferences] = await Promise.all([
+    allLeads(db),
+    getPreferences(db, userId),
+  ]);
+  return { leads, preferences };
+}
+export async function getPreferences(db: SupabaseClient, userId: string) {
   const { data, error } = await db
     .from("profiles")
     .select("preferences")
     .eq("id", userId)
     .single();
   if (error) throw new Error("Profilo non disponibile: verifica la migrazione");
-  return {
-    leads,
-    preferences: preferencesSchema.parse(data?.preferences || {}),
-  };
+  return preferencesSchema.parse(data?.preferences || {});
 }
 export async function saveLead(
   db: SupabaseClient,

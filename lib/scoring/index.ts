@@ -1,5 +1,6 @@
 import type { Lead, ScoreReason } from "../model";
 import { contactable } from "../model";
+import { websiteFailureEvidence } from "../website-evidence";
 export function scoreLead(lead: Lead): Lead {
   const reasons: ScoreReason[] = [];
   const ev = lead.analysis.evidence;
@@ -12,8 +13,17 @@ export function scoreLead(lead: Lead): Lead {
     ["none", "social_only", "external_page_only"].includes(lead.website_status)
   )
     add("no_website", "Nessun sito proprietario verificato", 30);
-  add("website_missing", "Sito non indicato da Google Places: da verificare", 25);
-  add("website_unreachable", "Sito non raggiungibile", 30);
+  add(
+    "website_missing",
+    "Sito non indicato da Google Places: da verificare",
+    25,
+  );
+  if (websiteFailureEvidence(lead))
+    add(
+      "website_unreachable",
+      "Il sito ha restituito un errore HTTP: da verificare",
+      30,
+    );
   if (["poor", "broken"].includes(lead.website_quality))
     add("weak_website", "Sito migliorabile: criticità rilevate", 25);
   add("menu_ads", "Elementi pubblicitari nel menu", 15);
@@ -72,33 +82,28 @@ export function scoreLead(lead: Lead): Lead {
     (lead.website_quality === "excellent" || lead.website_quality === "good"
       ? "Sito buono: non contattare"
       : "Nessuna opportunità verificata");
-  const unavailable =
-    lead.website_quality === "broken" ||
-    ev.some((e) => e.kind === "website_unreachable" && e.confidence >= 0.7);
+  const unavailable = !!websiteFailureEvidence(lead);
   const weak = lead.website_quality === "poor";
   const opportunity = unavailable
-    ? "Rimettere online il sito prima di proporre modifiche"
-    : ev.some(
-    (e) => e.kind === "menu_ads" && e.confidence >= 0.7,
-  )
-    ? "Menu proprietario più pulito"
-    : unavailable
-      ? "Rimettere online il sito prima di proporre modifiche"
+    ? "Verificare l’errore restituito dal sito prima di proporre modifiche"
+    : ev.some((e) => e.kind === "menu_ads" && e.confidence >= 0.7)
+      ? "Menu proprietario più pulito"
       : weak
-      ? "Restyling per valorizzare contenuti, foto e contatti"
-      : ["none", "social_only", "external_page_only"].includes(
-            lead.website_status,
-          ) &&
-          positive.some((r) =>
-            r.evidence_ids.some((id) =>
-              ev.some(
-                (e) =>
-                  e.id === id && ["no_website", "website_missing"].includes(e.kind),
+        ? "Restyling per valorizzare contenuti, foto e contatti"
+        : ["none", "social_only", "external_page_only"].includes(
+              lead.website_status,
+            ) &&
+            positive.some((r) =>
+              r.evidence_ids.some((id) =>
+                ev.some(
+                  (e) =>
+                    e.id === id &&
+                    ["no_website", "website_missing"].includes(e.kind),
+                ),
               ),
-            ),
-          )
-        ? "Un sito proprietario con le informazioni del locale"
-        : "Verifica manuale prima di proporre un intervento";
+            )
+          ? "Un sito proprietario con le informazioni del locale"
+          : "Verifica manuale prima di proporre un intervento";
   return {
     ...lead,
     lead_score: score,
@@ -144,6 +149,6 @@ export const worthwhile = (lead: Lead) =>
         (e.kind === "events" &&
           lead.website_status === "own_website" &&
           !lead.analysis.features?.has_events_page) ||
-        (e.kind === "website_unreachable" &&
+        (e.id === websiteFailureEvidence(lead)?.id &&
           ["unknown", "broken"].includes(lead.website_quality))),
   );

@@ -1,4 +1,5 @@
 import { contactable, type Lead, type Preferences } from "../model";
+import { websiteFailureEvidence } from "../website-evidence";
 export type ContactReasonKind =
   | "no_website"
   | "broken_website"
@@ -51,8 +52,7 @@ export function messageFacts(l: Lead, p: Preferences) {
     "Rosticceria",
     "Altro food",
   ].includes(l.category);
-  const unavailable =
-    l.website_status === "broken" || has("website_unreachable");
+  const unavailable = !!websiteFailureEvidence(l);
   return {
     unavailable,
     own: l.website_status === "own_website" || l.website_status === "broken",
@@ -82,12 +82,26 @@ export function buildOutreachContext(
     (e) => e.confidence >= 0.7 && !!e.url,
   );
   const first = (kind: string) => evidence.find((e) => e.kind === kind);
-  const unavailable = first("website_unreachable");
+  const unavailable = websiteFailureEvidence(lead);
   const ads = first("menu_ads");
-  const sparse = first("sparse");
   const weak = first("weak_website");
-  const noWebsite = first("no_website");
-  const websiteMissing = first("website_missing");
+  const wordCount =
+    lead.analysis.features?.word_count ??
+    Number(weak?.text.match(/\b(\d+) parole\b/i)?.[1] || 0);
+  const sparse =
+    first("sparse") || (wordCount >= 20 && wordCount < 250 ? weak : undefined);
+  // HTML counters support a content observation, never a visual judgement.
+  const visualWeak =
+    weak && /(?:poco moderno|datato|vecchi|poco curat|grafica)/i.test(weak.text)
+      ? weak
+      : undefined;
+  const noWebsite = messageFacts(lead, prefs).missing
+    ? first("no_website")
+    : undefined;
+  const websiteMissing =
+    !lead.website_url && lead.website_status !== "own_website"
+      ? first("website_missing")
+      : undefined;
   const events =
     prefs.events && lead.analysis.events_relevant ? first("events") : undefined;
   const curated = first("curated_social");
@@ -124,21 +138,21 @@ export function buildOutreachContext(
     contactReason =
       "il locale pubblica serate o eventi ma non ha un sito dove raccoglierli";
     addAttributions(events, noWebsite);
-  } else if (curated && (sparse || weak)) {
+  } else if (curated && (sparse || visualWeak)) {
     reasonKind = "good_socials_bad_web";
     contactReason = sparse
       ? "la pagina e le foto sono curate ma il sito contiene pochissimo materiale"
       : "la pagina e le foto sono curate ma il sito non è allo stesso livello";
-    addAttributions(curated, sparse || weak);
+    addAttributions(curated, sparse || visualWeak);
   } else if (sparse) {
     reasonKind = "sparse_website";
     contactReason =
       "il sito esiste ma contiene pochissimo materiale rispetto all’attività";
     addAttributions(sparse);
-  } else if (weak) {
+  } else if (visualWeak) {
     reasonKind = "poor_website";
     contactReason = "il sito esiste ma appare poco moderno e poco curato";
-    addAttributions(weak);
+    addAttributions(visualWeak);
   } else if (lead.menu_status === "instagram_only" && menuSource) {
     reasonKind = "instagram_menu_only";
     contactReason = "il menu è disponibile principalmente tramite Instagram";
@@ -276,7 +290,7 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
       observations: [
         "ho dato un'occhiata al vostro sito e secondo me si potrebbe rendere parecchio più moderno",
         "stavo guardando il vostro sito e l'aspetto si potrebbe curare molto meglio",
-        "ho visto il vostro sito e secondo me oggi non rispecchia bene il locale",
+        "ho visto il vostro sito e secondo me la grafica si potrebbe aggiornare",
       ],
       pitches: [
         `potrei rifarlo mantenendo ${menu} e informazioni che avete già`,
@@ -311,8 +325,8 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
     instagram_menu_only: {
       observations: [
         "ho visto che il vostro menu si trova principalmente su Instagram",
-        "stavo cercando il menu e l'ho trovato soprattutto nelle storie di Instagram",
-        "ho notato che per vedere il menu bisogna passare da Instagram",
+        "stavo cercando il vostro menu e ho trovato il link su Instagram",
+        "ho visto il link al vostro menu su Instagram",
       ],
       pitches: [
         `potrei metterlo su un sito vostro sempre aggiornabile${qr}`,
@@ -324,7 +338,7 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
       observations: [
         "stavo guardando la vostra pagina e le foto sono curate ma il sito non è allo stesso livello",
         "ho visto che sui social curate bene le foto mentre il sito resta molto più scarno",
-        "la vostra pagina è curata ma il sito e il menu stonano un po' col resto",
+        "la vostra pagina è curata ma il sito stona un po' col resto",
       ],
       pitches: [
         `potrei rendere il sito più coerente con le foto e sistemare anche ${menu}`,
@@ -334,9 +348,9 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
     },
     events_no_website: {
       observations: [
-        "ho visto che pubblicate spesso serate ma le informazioni restano sparse sui social",
+        "ho visto che organizzate serate ma non ho trovato un vostro sito dove raccoglierle",
         "stavo guardando le vostre serate e non ho trovato un sito dove vederle tutte",
-        "ho notato che gli eventi vengono pubblicati sui social ma manca uno spazio dedicato",
+        "ho visto gli eventi che organizzate e non ho trovato un sito del locale",
       ],
       pitches: [
         `potrei farvi un sito per le prossime date con ${menu} e contatti`,
@@ -389,8 +403,7 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
       /(?=[\s\S]*sito)(?=[\s\S]*(?:non ho trovato|non sono riuscito|non ne ho trovato|non l.ho trovato|senza riuscire a trovarlo))/i,
     broken_website:
       /sito[\s\S]{0,120}(?:non funzion|non si apre|problema nell.aprir)/i,
-    poor_website:
-      /sito[\s\S]{0,150}(?:modern|curat|aspetto|rispecchia|telefono)/i,
+    poor_website: /sito[\s\S]{0,150}(?:modern|curat|aspetto|grafica|telefono)/i,
     sparse_website:
       /sito[\s\S]{0,150}(?:poco dentro|pochi contenut|scarno|pochissim)/i,
     menu_ads: /menu[\s\S]{0,120}(?:pubblicit|annunci|blocchi pubblicitari)/i,

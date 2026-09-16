@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { useOverlay } from "./use-overlay";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -94,19 +95,32 @@ function Detail({ lead: l }: { lead: Lead }) {
   );
   const [edit, setEdit] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const dialog = useRef<HTMLDivElement>(null);
+  const closeDialog = useCallback(() => setConfirm(false), []);
+  useOverlay(confirm, dialog, closeDialog);
   const [channel, setChannel] = useState("WhatsApp");
   const [notes, setNotes] = useState("");
-  const [status, setStatus] = useState(l.status);
+  const [status, setStatus] = useState<Lead["status"]>();
   const [verifyUrl, setVerifyUrl] = useState("");
   const [verifyNote, setVerifyNote] = useState("");
-  const [wa, setWa] = useState(l.whatsapp_confidence);
-  const [site, setSite] = useState(l.website_status);
+  const [wa, setWa] = useState<Lead["whatsapp_confidence"]>();
+  const [site, setSite] = useState<Lead["website_status"]>();
   const [screenshot, setScreenshot] = useState("");
-  const contactDraft = text.trim() || fallbackMessage(l, preferences);
+  useEffect(
+    () => () => {
+      if (screenshot) URL.revokeObjectURL(screenshot);
+    },
+    [screenshot],
+  );
+  const contactDraft = text.trim();
   const blocked = !contactable(l);
-  const canWa = !blocked && !!whatsappUrl(l, contactDraft) && !l.is_demo;
+  const canWa =
+    !blocked && !!contactDraft && !!whatsappUrl(l, contactDraft) && !l.is_demo;
   const canCheckWa =
-    !blocked && !!whatsappCheckUrl(l, contactDraft) && !l.is_demo;
+    !blocked &&
+    !!contactDraft &&
+    !!whatsappCheckUrl(l, contactDraft) &&
+    !l.is_demo;
   const hasFb = !blocked && !!l.facebook_url && !l.is_demo;
   const navigable = leads.filter(
     (item) =>
@@ -120,26 +134,13 @@ function Detail({ lead: l }: { lead: Lead }) {
       ? navigable[position + 1]
       : undefined;
   async function saveDraft() {
-    if (text.trim() && text !== l.messages.at(-1)?.text)
-      await command("save_message", { text }, l.id);
+    const trimmed = text.trim();
+    if (trimmed && trimmed !== l.messages.at(-1)?.text)
+      await command("save_message", { text: trimmed }, l.id);
   }
   async function copy() {
     await navigator.clipboard.writeText(text);
     notify("Messaggio copiato");
-  }
-  async function registerWhatsAppVerification() {
-    await saveDraft();
-    await command(
-      "patch",
-      {
-        status: "contacted",
-        channel: "WhatsApp",
-        event_notes: "WhatsApp aperto per verificare il numero",
-      },
-      l.id,
-    );
-    setStatus("contacted");
-    notify("Lead segnato come contattato");
   }
   return (
     <>
@@ -278,6 +279,7 @@ function Detail({ lead: l }: { lead: Lead }) {
             </p>
             <textarea
               aria-label="Messaggio suggerito"
+              maxLength={3000}
               className="message-editor"
               rows={7}
               value={text}
@@ -347,10 +349,7 @@ function Detail({ lead: l }: { lead: Lead }) {
                 <button
                   className="button secondary"
                   disabled={!canCheckWa || task.busy}
-                  onClick={() => {
-                    setConfirm(true);
-                    void task.run(registerWhatsAppVerification);
-                  }}
+                  onClick={() => setConfirm(true)}
                 >
                   <MessageCircle size={17} /> Verifica su WhatsApp
                 </button>
@@ -485,7 +484,6 @@ function Detail({ lead: l }: { lead: Lead }) {
                           throw new Error(
                             "Screenshot non disponibile; usa l’analisi HTML",
                           );
-                        if (screenshot) URL.revokeObjectURL(screenshot);
                         setScreenshot(URL.createObjectURL(await res.blob()));
                       })
                     }
@@ -612,7 +610,7 @@ function Detail({ lead: l }: { lead: Lead }) {
             <div className="separator" />
             <Field label="Aggiorna stato">
               <select
-                value={status}
+                value={status ?? l.status}
                 onChange={(e) => setStatus(e.target.value as Lead["status"])}
               >
                 {statuses.map((s) => (
@@ -629,7 +627,7 @@ function Detail({ lead: l }: { lead: Lead }) {
                 void task.run(async () => {
                   await command(
                     "patch",
-                    { status, event_notes: notes, channel },
+                    { status: status ?? l.status, event_notes: notes, channel },
                     l.id,
                   );
                   notify("Stato aggiornato");
@@ -681,7 +679,7 @@ function Detail({ lead: l }: { lead: Lead }) {
               </p>
               <Field label="WhatsApp">
                 <select
-                  value={wa}
+                  value={wa ?? l.whatsapp_confidence}
                   onChange={(e) =>
                     setWa(e.target.value as Lead["whatsapp_confidence"])
                   }
@@ -700,7 +698,7 @@ function Detail({ lead: l }: { lead: Lead }) {
               </Field>
               <Field label="Presenza sito">
                 <select
-                  value={site}
+                  value={site ?? l.website_status}
                   onChange={(e) =>
                     setSite(e.target.value as Lead["website_status"])
                   }
@@ -742,13 +740,17 @@ function Detail({ lead: l }: { lead: Lead }) {
                     await command(
                       "patch",
                       {
-                        whatsapp_confidence: wa,
-                        website_status: site,
+                        ...(wa === undefined
+                          ? {}
+                          : { whatsapp_confidence: wa }),
+                        ...(site === undefined ? {} : { website_status: site }),
                         verification_url: verifyUrl,
                         verification_note: verifyNote,
                       },
                       l.id,
                     );
+                    setWa(undefined);
+                    setSite(undefined);
                     notify("Verifica salvata con la fonte");
                   })
                 }
@@ -795,6 +797,8 @@ function Detail({ lead: l }: { lead: Lead }) {
       {confirm && (
         <div className="modal-backdrop" onClick={() => setConfirm(false)}>
           <div
+            ref={dialog}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-labelledby="wa-title"
@@ -802,7 +806,7 @@ function Detail({ lead: l }: { lead: Lead }) {
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              autoFocus
+              data-overlay-close
               className="icon-btn modal-close"
               onClick={() => setConfirm(false)}
               aria-label="Chiudi conferma"

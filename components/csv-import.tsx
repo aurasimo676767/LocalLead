@@ -13,7 +13,9 @@ export function CsvImport() {
   const { leads, command } = useWorkspace();
   const task = useTask();
   const [rows, setRows] = useState<Preview[]>([]);
-  const [done, setDone] = useState<string[]>([]);
+  const [done, setDone] = useState<
+    Record<number, { ok: boolean; message: string }>
+  >({});
   const [progress, setProgress] = useState("");
   return (
     <>
@@ -36,7 +38,8 @@ export function CsvImport() {
               const file = e.target.files?.[0];
               if (!file) return;
               setRows([]);
-              setDone([]);
+              setDone({});
+              setProgress("");
               void task.run(async () => {
                 if (file.size > 1_000_000)
                   throw new Error("File troppo grande (massimo 1 MB)");
@@ -114,35 +117,68 @@ export function CsvImport() {
             <div className="form-actions">
               <button
                 disabled={
-                  task.busy || rows.some((r) => !r.data) || done.length > 0
+                  task.busy ||
+                  rows.some((r) => !r.data) ||
+                  rows.every((r) => done[r.row]?.ok)
                 }
                 className="button"
                 onClick={() =>
                   void task.run(async () => {
-                    const report: string[] = [];
-                    for (let i = 0; i < rows.length; i++) {
-                      const r = rows[i];
-                      if (!r.data) continue;
-                      setProgress(`Import ${i + 1}/${rows.length}`);
+                    const report = { ...done };
+                    const pending = rows.filter(
+                      (row) => row.data && !done[row.row]?.ok,
+                    );
+                    for (let i = 0; i < pending.length; i += 10) {
+                      const batch = pending.slice(i, i + 10);
+                      setProgress(
+                        `Import ${Math.min(i + 10, pending.length)}/${pending.length}`,
+                      );
                       try {
-                        const result = await command("create", r.data);
-                        report.push(
-                          `${r.data.name}: ${result.duplicate ? "già presente" : "importato"}`,
+                        const result = await command(
+                          "import",
+                          batch.map((row) => row.data),
                         );
+                        let successIndex = 0;
+                        batch.forEach((row, index) => {
+                          const error = result.importErrors?.find(
+                            (item) => item.index === index,
+                          );
+                          const saved = error
+                            ? undefined
+                            : result.results?.[successIndex++];
+                          report[row.row] = {
+                            ok: !!saved,
+                            message: `${row.data!.name}: ${error?.error || (saved ? (saved.duplicate ? "già presente" : "importato") : "Salvataggio non confermato")}`,
+                          };
+                        });
                       } catch (e) {
-                        report.push(
-                          `${r.data.name}: ${e instanceof Error ? e.message : "errore"}`,
-                        );
+                        for (const row of batch)
+                          report[row.row] = {
+                            ok: false,
+                            message: `${row.data!.name}: ${e instanceof Error ? e.message : "errore"}`,
+                          };
+                        // Keep unattempted rows available for the next click.
+                        setDone({ ...report });
+                        break;
                       }
-                      setDone([...report]);
+                      setDone({ ...report });
                     }
+                    const saved = Object.values(report).filter(
+                      (row) => row.ok,
+                    ).length;
                     setProgress(
-                      "Import completato. Apri le schede per analizzare i siti.",
+                      saved === rows.length
+                        ? "Import completato. Apri le schede per analizzare i siti."
+                        : `${saved} righe completate su ${rows.length}. Puoi riprovare le righe rimanenti.`,
                     );
                   })
                 }
               >
-                {task.busy ? progress : "Conferma import"}
+                {task.busy
+                  ? progress
+                  : Object.keys(done).length
+                    ? "Riprova righe rimanenti"
+                    : "Conferma import"}
               </button>
               <span className="muted">
                 Correggi gli errori nel CSV prima di confermare.
@@ -150,12 +186,12 @@ export function CsvImport() {
             </div>
           </>
         )}
-        {done.length > 0 && (
-          <div className="note">
+        {Object.keys(done).length > 0 && (
+          <div className="note" aria-live="polite">
             <strong>{progress}</strong>
             <ul>
-              {done.map((d, i) => (
-                <li key={i}>{d}</li>
+              {Object.values(done).map((d, i) => (
+                <li key={i}>{d.message}</li>
               ))}
             </ul>
             <Link href="/leads">Vai ai lead →</Link>

@@ -137,47 +137,53 @@ export async function generateOutreachMessage(
   }));
   if (!process.env.OPENAI_API_KEY || lead.is_demo || !evidence.length)
     return fallback();
+  const deadline = Date.now() + 30_000;
   for (let attempt = 0; attempt < 3; attempt++) {
+    const remaining = deadline - Date.now();
+    if (remaining < 1000) break;
     try {
-      const r = await client().responses.parse({
-        model: model(),
-        instructions: outreachInstructions(
-          prefs,
-          attempt,
-          context,
-          !!previousMessage,
-        ),
-        store: false,
-        max_output_tokens: 700,
-        text: { format: zodTextFormat(messageSchema, "outreach_message") },
-        input: [
-          {
-            role: "user",
-            content: JSON.stringify({
-              lead: {
-                name: lead.name,
-                category: lead.category,
-                city: lead.city,
-                websiteStatus: lead.website_status,
-                websiteQuality: lead.website_quality,
-                menuStatus: lead.menu_status,
-                contactReason: context.contactReason,
-                verifiedObservations: context.verifiedObservations,
-                websiteIssues: context.websiteIssues,
-                positiveSignals: context.positiveSignals,
-                eventsRelevant:
-                  context.reasonKind === "events_no_website" &&
-                  lead.analysis.events_relevant,
-                suggestedFeatures: context.suggestedFeatures,
-                websiteFeatures: lead.analysis.features,
-                evidence,
-              },
-              preferences: prefs,
-              previousMessage,
-            }),
-          },
-        ],
-      });
+      const r = await client().responses.parse(
+        {
+          model: model(),
+          instructions: outreachInstructions(
+            prefs,
+            attempt,
+            context,
+            !!previousMessage,
+          ),
+          store: false,
+          max_output_tokens: 700,
+          text: { format: zodTextFormat(messageSchema, "outreach_message") },
+          input: [
+            {
+              role: "user",
+              content: JSON.stringify({
+                lead: {
+                  name: lead.name,
+                  category: lead.category,
+                  city: lead.city,
+                  websiteStatus: lead.website_status,
+                  websiteQuality: lead.website_quality,
+                  menuStatus: lead.menu_status,
+                  contactReason: context.contactReason,
+                  verifiedObservations: context.verifiedObservations,
+                  websiteIssues: context.websiteIssues,
+                  positiveSignals: context.positiveSignals,
+                  eventsRelevant:
+                    context.reasonKind === "events_no_website" &&
+                    lead.analysis.events_relevant,
+                  suggestedFeatures: context.suggestedFeatures,
+                  websiteFeatures: lead.analysis.features,
+                  evidence,
+                },
+                preferences: prefs,
+                previousMessage,
+              }),
+            },
+          ],
+        },
+        { timeout: Math.min(10_000, remaining) },
+      );
       const parsed = messageSchema.parse(r.output_parsed);
       if (
         !parsed.evidence_ids.length ||
@@ -194,8 +200,14 @@ export async function generateOutreachMessage(
         continue;
       console.info("[AI] message", { id: lead.id, model: model() });
       return { text: parsed.text, model: model(), warning: "", context };
-    } catch {
+    } catch (error) {
       console.warn("[AI] message fallback", { id: lead.id, attempt });
+      // A transport/provider failure is not fixed by rephrasing the prompt.
+      if (
+        (error instanceof Error && /Connection|Timeout/.test(error.name)) ||
+        (typeof error === "object" && error !== null && "status" in error)
+      )
+        break;
     }
   }
   return fallback();

@@ -11,7 +11,7 @@ import {
   normalizePhone,
 } from "../utils";
 import { scoreLead } from "../scoring";
-const ANALYSIS_VERSION = "reachability-v2";
+const ANALYSIS_VERSION = "reachability-v3";
 export async function enrichLead(input: Lead): Promise<Lead> {
   if (input.is_demo) return scoreLead(input);
   const hours = Number(process.env.ANALYSIS_CACHE_HOURS || 72);
@@ -44,9 +44,12 @@ export async function enrichLead(input: Lead): Promise<Lead> {
         "events",
         "menu_ads",
         "website_unreachable",
+        "website_check_failed",
       ].includes(e.kind),
   );
   l.analysis.features = null;
+  l.analysis.outreach_context = undefined;
+  l.analysis.contact_reason = undefined;
   l.analysis.events_relevant = false;
   try {
     const extra = await searchProvider().enrich(l);
@@ -69,6 +72,20 @@ export async function enrichLead(input: Lead): Promise<Lead> {
       l.website_status = "own_website";
       try {
         const page = await publicHtml(l.website_url);
+        if (
+          /<title[^>]*>\s*(?:just a moment|access denied|attention required|verify you are human)/i.test(
+            page.body,
+          )
+        )
+          throw new Error(
+            "Il sito mostra una verifica di accesso al lettore automatico",
+          );
+        if (
+          page.status >= 400 &&
+          ![404, 410].includes(page.status) &&
+          page.status < 500
+        )
+          throw new Error("Il sito limita o rifiuta l’accesso automatico");
         if (!page.body && page.status < 400)
           throw new Error("Contenuto HTML non disponibile");
         const f = extractHtml(page.body, page.url, page.status);
@@ -160,18 +177,22 @@ export async function enrichLead(input: Lead): Promise<Lead> {
           },
           created_at: now(),
         });
-      } catch {
+      } catch (error) {
         l.website_quality = "unknown";
         l.website_status = "unknown";
         add(
-          "website_unreachable",
-          "Il sito indicato non è raggiungibile o non ha restituito una pagina HTML",
+          "website_check_failed",
+          "L’analisi automatica non ha potuto leggere il sito; funzionamento da verificare nel browser",
           l.website_url,
-          0.9,
+          0.5,
         );
         l.analysis.warnings.push(
-          "Sito non raggiungibile o non analizzabile: nessun restyling presunto.",
+          "Non siamo riusciti a leggere il sito automaticamente. Aprilo nel browser per verificarlo: questo non significa che non funzioni.",
         );
+        console.warn("[website analysis] fetch failed", {
+          id: l.id,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
       }
     }
   }

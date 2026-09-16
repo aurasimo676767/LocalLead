@@ -3,14 +3,22 @@ import { patchSchema, inputSchema } from "./validation";
 import { scoreLead } from "./scoring";
 import { safeUrl, dedupKeys } from "./utils";
 export function manualSources(l: Lead): Lead {
-  const sources = l.sources.filter((s) => s.source_type !== "manual");
+  const sources = [...l.sources];
   for (const key of [
     "website_url",
     "facebook_url",
     "instagram_url",
     "menu_url",
   ] as const)
-    if (safeUrl(l[key]))
+    if (
+      safeUrl(l[key]) &&
+      !sources.some(
+        (source) =>
+          source.source_type === "manual" &&
+          source.url === l[key] &&
+          source.metadata_json.field === key,
+      )
+    )
       sources.push({
         id: uid(),
         source_type: "manual",
@@ -66,6 +74,7 @@ export function patchLead(lead: Lead, raw: unknown): Lead {
             "sparse",
             "good_website",
             "no_website",
+            "website_missing",
             "website_unreachable",
             "events",
             "menu_ads",
@@ -75,6 +84,8 @@ export function patchLead(lead: Lead, raw: unknown): Lead {
       features: null,
       events_relevant: false,
       analyzed_at: null,
+      outreach_context: undefined,
+      contact_reason: undefined,
     };
     l.website_status = "unknown";
     l.website_quality = "unknown";

@@ -24,17 +24,16 @@ import { inputSchema, discoverySchema } from "@/lib/validation";
 import { duplicate } from "@/lib/utils";
 import { scoreLead } from "@/lib/scoring";
 import {
+  mergeWorkspaceResult,
+  type WorkspaceResult,
+} from "@/lib/workspace-state";
+import {
   buildOutreachContext,
   fallbackMessage,
   messageAllowed,
   similarity,
 } from "@/lib/messaging";
-type Result = {
-  lead?: Lead;
-  duplicate?: boolean;
-  results?: { lead: Lead; duplicate: boolean }[];
-  warning?: string;
-};
+type Result = WorkspaceResult;
 type Context = Workspace & {
   config: PublicConfig;
   loading: boolean;
@@ -58,6 +57,8 @@ export function WorkspaceProvider({
     preferences: defaultPreferences,
   });
   const ref = useRef(state);
+  const revision = useRef(0);
+  const requestVersion = useRef(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, notify] = useState("");
@@ -66,6 +67,8 @@ export function WorkspaceProvider({
     setState(s);
   }, []);
   const reload = useCallback(async () => {
+    const version = ++requestVersion.current;
+    const startedAt = revision.current;
     setError("");
     try {
       if (config.demo) {
@@ -81,7 +84,11 @@ export function WorkspaceProvider({
         const res = await fetch("/api/workspace", { cache: "no-store" });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-        replace(data);
+        if (
+          version === requestVersion.current &&
+          startedAt === revision.current
+        )
+          replace(data);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Impossibile caricare i dati");
@@ -118,7 +125,8 @@ export function WorkspaceProvider({
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Operazione non riuscita");
-      await reload();
+      revision.current++;
+      replace(mergeWorkspaceResult(ref.current, result));
       if (result.warning) notify(result.warning);
       return result;
     }
@@ -144,6 +152,18 @@ export function WorkspaceProvider({
         }
       }
       result = { results };
+    } else if (action === "import") {
+      if (!Array.isArray(data) || data.length < 1 || data.length > 10)
+        throw new Error("Importa da 1 a 10 righe alla volta");
+      const inputs = data.map((row) => inputSchema.parse(row));
+      const results: NonNullable<Result["results"]> = [];
+      for (const input of inputs) {
+        const lead = scoreLead(manualSources(newLead(input)));
+        const found = duplicate(lead, current.leads);
+        if (!found) current.leads.unshift(lead);
+        results.push({ lead: found || lead, duplicate: !!found });
+      }
+      result = { results, importErrors: [] };
     } else if (action === "create") {
       const lead = scoreLead(manualSources(newLead(inputSchema.parse(data))));
       const found = duplicate(lead, current.leads);
@@ -210,6 +230,7 @@ export function WorkspaceProvider({
           };
           localStorage.setItem(storageKey, JSON.stringify(current));
           replace(current);
+          notify(result.warning || "");
           return result;
         }
         variants.sort(
@@ -270,8 +291,11 @@ export function useWorkspace() {
 }
 export function useTask() {
   const [busy, setBusy] = useState(false);
+  const running = useRef(false);
   const [error, setError] = useState("");
   async function run(fn: () => Promise<void>) {
+    if (running.current) return;
+    running.current = true;
     setBusy(true);
     setError("");
     try {
@@ -279,6 +303,7 @@ export function useTask() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Operazione non riuscita");
     } finally {
+      running.current = false;
       setBusy(false);
     }
   }

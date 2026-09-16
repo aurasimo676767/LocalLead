@@ -16,7 +16,7 @@ export async function resolvePublic(url: string) {
   ]);
   if (!records.length || records.some((r) => !publicIp(r.address)))
     throw new Error("Indirizzo di rete non pubblico");
-  return records[0];
+  return records.find((record) => record.family === 4) || records[0];
 }
 /** Resolve and pin the validated address into the actual socket. Revalidate every redirect. */
 export async function publicHtml(
@@ -45,8 +45,12 @@ export async function publicHtml(
           Accept: "text/html,application/xhtml+xml",
           "Accept-Encoding": "identity",
         },
-        lookup: (_host, _options, cb) =>
-          cb(null, resolved.address, resolved.family),
+        lookup: (_host, options, cb) => {
+          // Modern Node requests an array when automatic IP-family selection is enabled.
+          // Always return the address already validated above, never resolve it again.
+          if (options.all) cb(null, [resolved]);
+          else cb(null, resolved.address, resolved.family);
+        },
       },
       (res) => {
         const status = res.statusCode || 0;

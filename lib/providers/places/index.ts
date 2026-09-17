@@ -152,6 +152,7 @@ export class GooglePlacesProvider implements LocalBusinessProvider {
         )) as { places?: Place[]; nextPageToken?: string };
         for (const p of json.places || [])
           if (
+            normalizePhone(p.internationalPhoneNumber || "") &&
             !isLandlinePhone(p.internationalPhoneNumber || "") &&
             !found.some((l) => l.place_id === p.id)
           ) {
@@ -188,6 +189,7 @@ export class GooglePlacesProvider implements LocalBusinessProvider {
 export class DemoPlacesProvider implements LocalBusinessProvider {
   async searchBusinesses(input: SearchInput) {
     return demoLeads()
+      .filter((l) => normalizePhone(l.phone))
       .filter((l) => input.categories.includes(l.category))
       .slice(0, input.limit);
   }

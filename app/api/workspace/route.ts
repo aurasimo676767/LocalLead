@@ -15,7 +15,7 @@ import { manualSources, patchLead } from "@/lib/lead-actions";
 import { placesProvider } from "@/lib/providers/places";
 import { enrichLead } from "@/lib/enrichment";
 import { analyzeLead, generateOutreachMessage } from "@/lib/ai";
-import { duplicate } from "@/lib/utils";
+import { duplicate, normalizePhone } from "@/lib/utils";
 import { scoreLead } from "@/lib/scoring";
 import { buildOutreachContext } from "@/lib/messaging";
 export const runtime = "nodejs";
@@ -131,6 +131,7 @@ export async function POST(req: NextRequest) {
         const prev = duplicate(candidate, existing);
         if (prev?.do_not_contact) continue;
         if (prev) {
+          if (!normalizePhone(prev.phone)) continue;
           results.push({ lead: prev, duplicate: true });
           continue;
         }
@@ -139,6 +140,7 @@ export async function POST(req: NextRequest) {
         const saved = await saveLead(db, l);
         const stored = saved.duplicate ? await getLead(db, saved.id) : l;
         if (stored.do_not_contact) continue;
+        if (!normalizePhone(stored.phone)) continue;
         results.push({ lead: stored, duplicate: saved.duplicate });
         existing.push(stored);
       }

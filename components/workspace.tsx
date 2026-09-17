@@ -21,7 +21,7 @@ import {
 import { demoWorkspace, demoLeads } from "@/lib/demo";
 import { manualSources, patchLead } from "@/lib/lead-actions";
 import { inputSchema, discoverySchema } from "@/lib/validation";
-import { duplicate } from "@/lib/utils";
+import { duplicate, normalizePhone } from "@/lib/utils";
 import { scoreLead } from "@/lib/scoring";
 import {
   mergeWorkspaceResult,
@@ -141,10 +141,12 @@ export function WorkspaceProvider({
       const input = discoverySchema.parse(data);
       const results: { lead: Lead; duplicate: boolean }[] = [];
       for (const candidate of demoLeads()
+        .filter((l) => normalizePhone(l.phone))
         .filter((l) => input.categories.includes(l.category))
         .slice(0, input.limit)) {
         const found = duplicate(candidate, current.leads);
         if (found?.do_not_contact) continue;
+        if (found && !normalizePhone(found.phone)) continue;
         if (found) results.push({ lead: found, duplicate: true });
         else {
           current.leads.push(candidate);

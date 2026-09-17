@@ -57,13 +57,19 @@ describe("provider contracts and conservative enrichment", () => {
   it("paginates and deduplicates repeated place IDs", async () => {
     mocks.providerJson
       .mockResolvedValueOnce({
-        places: [{ id: "one", displayName: { text: "One" } }],
+        places: [
+          { id: "missing" },
+          { id: "empty", internationalPhoneNumber: "   " },
+          { id: "invalid", internationalPhoneNumber: "123" },
+          { id: "landline", internationalPhoneNumber: "+39 02 12345678" },
+          { id: "one", displayName: { text: "One" }, internationalPhoneNumber: "+39 3331234567" },
+        ],
         nextPageToken: "next",
       })
       .mockResolvedValueOnce({
         places: [
-          { id: "one", displayName: { text: "One" } },
-          { id: "two", displayName: { text: "Two" } },
+          { id: "one", displayName: { text: "One" }, internationalPhoneNumber: "+39 3331234567" },
+          { id: "two", displayName: { text: "Two" }, internationalPhoneNumber: "+39 3331234568" },
         ],
       });
     const rows = await new GooglePlacesProvider().searchBusinesses({
@@ -72,6 +78,7 @@ describe("provider contracts and conservative enrichment", () => {
       limit: 10,
     });
     expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.place_id)).toEqual(["one", "two"]);
     expect(JSON.parse(mocks.providerJson.mock.calls[1][1].body).pageToken).toBe(
       "next",
     );

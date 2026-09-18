@@ -6,9 +6,9 @@ import { contactable, type Lead, type Preferences } from "../model";
 import {
   buildOutreachContext,
   fallbackMessage,
-  messageAllowed,
   similarity,
 } from "../messaging";
+import { buildMessagePayload, validateOutreachMessage } from "../messaging/validation";
 import { outreachInstructions } from "../messaging/prompt";
 const client = () =>
   new OpenAI({
@@ -78,7 +78,9 @@ export async function analyzeLead(lead: Lead): Promise<Lead> {
   }
 }
 const messageSchema = z.object({
-  text: z.string(),
+  message: z.string(),
+  reasonUsed: z.string(),
+  featuresUsed: z.array(z.string()),
   evidence_ids: z.array(z.string()),
 });
 const firstLine = (text: string) =>
@@ -102,16 +104,19 @@ export async function generateOutreachMessage(
       context,
     };
   const previousMessage = lead.messages.at(-1)?.text || "";
-  const comparisons = [...recent, previousMessage].filter(Boolean);
+  const comparisons = [...recent.slice(-10), previousMessage].filter(Boolean);
+  const payload = buildMessagePayload(lead, prefs, recent, previousMessage);
+  const messageModel = process.env.OPENAI_MESSAGE_MODEL || "gpt-5.6-terra";
+  let feedback: string[] = [];
   const start = recent.length + lead.messages.length;
   const fallback = () => {
     const variants = Array.from({ length: 15 }, (_, i) =>
       fallbackMessage(lead, prefs, start + i),
     ).filter(
       (text) =>
-        messageAllowed(text, lead, prefs) &&
+        validateOutreachMessage(text, lead, prefs, comparisons).valid &&
         (!previousMessage || firstLine(text) !== firstLine(previousMessage)) &&
-        comparisons.every((other) => similarity(text, other) <= 0.7),
+        comparisons.every((other) => similarity(text, other) <= 0.68),
     );
     if (!variants.length)
       throw new Error(
@@ -129,7 +134,7 @@ export async function generateOutreachMessage(
       context,
     };
   };
-  const evidence = context.attributions.map((e, index) => ({
+  const evidence = [...context.attributions, ...lead.analysis.evidence.filter(e => e.confidence >= 0.7 && !!e.url && e.kind !== "reviews" && !context.attributions.some(a => a.id === e.id))].map((e, index) => ({
     ref: `E${index + 1}`,
     text: e.text,
     url: e.url,
@@ -138,13 +143,14 @@ export async function generateOutreachMessage(
   if (!process.env.OPENAI_API_KEY || lead.is_demo || !evidence.length)
     return fallback();
   const deadline = Date.now() + 30_000;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     const remaining = deadline - Date.now();
     if (remaining < 1000) break;
     try {
       const r = await client().responses.parse(
         {
-          model: model(),
+          model: messageModel,
+          reasoning: { effort: "low" },
           instructions: outreachInstructions(
             prefs,
             attempt,
@@ -152,32 +158,15 @@ export async function generateOutreachMessage(
             !!previousMessage,
           ),
           store: false,
-          max_output_tokens: 700,
+          max_output_tokens: 1600,
           text: { format: zodTextFormat(messageSchema, "outreach_message") },
           input: [
             {
               role: "user",
               content: JSON.stringify({
-                lead: {
-                  name: lead.name,
-                  category: lead.category,
-                  city: lead.city,
-                  websiteStatus: lead.website_status,
-                  websiteQuality: lead.website_quality,
-                  menuStatus: lead.menu_status,
-                  contactReason: context.contactReason,
-                  verifiedObservations: context.verifiedObservations,
-                  websiteIssues: context.websiteIssues,
-                  positiveSignals: context.positiveSignals,
-                  eventsRelevant:
-                    context.reasonKind === "events_no_website" &&
-                    lead.analysis.events_relevant,
-                  suggestedFeatures: context.suggestedFeatures,
-                  websiteFeatures: lead.analysis.features,
-                  evidence,
-                },
-                preferences: prefs,
-                previousMessage,
+                ...payload,
+                lead: { ...payload.lead, evidence },
+                validationFeedback: feedback,
               }),
             },
           ],
@@ -190,17 +179,19 @@ export async function generateOutreachMessage(
         parsed.evidence_ids.some((id) => !evidence.some((e) => e.ref === id))
       )
         throw new Error("Evidenze assenti");
-      if (!messageAllowed(parsed.text, lead, prefs))
-        throw new Error("Regole messaggio non rispettate");
-      if (
-        (previousMessage &&
-          firstLine(parsed.text) === firstLine(previousMessage)) ||
-        comparisons.some((text) => similarity(text, parsed.text) > 0.7)
-      )
-        continue;
-      console.info("[AI] message", { id: lead.id, model: model() });
-      return { text: parsed.text, model: model(), warning: "", context };
+      const validation = validateOutreachMessage(parsed.message, lead, prefs, comparisons);
+      feedback = validation.errors;
+      if (parsed.reasonUsed !== context.reasonKind || !parsed.featuresUsed.length || parsed.featuresUsed.length > 3 || parsed.featuresUsed.some(feature => !payload.lead.recommendedFeatures.includes(feature)))
+        feedback.push("reasonUsed deve essere reasonKind e featuresUsed deve usare recommendedFeatures");
+      for (const feature of parsed.featuresUsed) {
+        const pattern = feature === "QR code" ? /\bqr\b/i : feature === "menu" ? /men[u\u00f9]/i : feature === "foto" ? /foto/i : /event|serat/i;
+        if (!pattern.test(parsed.message)) feedback.push("featuresUsed non corrisponde al testo");
+      }
+      if (feedback.length) continue;
+      console.info("[AI] message", { id: lead.id, model: messageModel });
+      return { text: parsed.message, model: messageModel, warning: "", context };
     } catch (error) {
+      feedback = ["Output non valido: rispetta schema, evidenze e regole del messaggio"];
       console.warn("[AI] message fallback", { id: lead.id, attempt });
       // A transport/provider failure is not fixed by rephrasing the prompt.
       if (

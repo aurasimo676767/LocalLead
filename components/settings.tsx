@@ -17,6 +17,22 @@ export function Settings() {
       <div className="settings-grid">
         <section className="panel">
           <h2>Preferenze messaggi</h2>
+          <Field label="Il tuo nome">
+            <input
+              value={prefs.sender_name}
+              maxLength={40}
+              placeholder="Solo il nome, es. Simone"
+              onChange={(e) => setPrefs({ ...prefs, sender_name: e.target.value })}
+            />
+          </Field>
+          <Field label="Dove abiti">
+            <input
+              value={prefs.sender_city}
+              maxLength={60}
+              placeholder="es. Vittoria"
+              onChange={(e) => setPrefs({ ...prefs, sender_city: e.target.value })}
+            />
+          </Field>
           <Field label="Tono">
             <select
               value={prefs.tone}
@@ -51,8 +67,8 @@ export function Settings() {
               ],
               [
                 "local",
-                "Menziona “della zona”",
-                "Una presentazione semplice e vicina.",
+                "Di’ che abiti in zona",
+                "“Abito a …” e “siti per locali della zona”.",
               ],
               [
                 "free_demo",

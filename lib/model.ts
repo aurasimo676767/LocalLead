@@ -189,6 +189,9 @@ export const preferencesSchema = z.object({
   restyling: z.boolean().default(true),
   local: z.boolean().default(true),
   free_demo: z.boolean().default(false),
+  // Only the first name: the surname can come later in the conversation.
+  sender_name: z.string().trim().max(40).default("Simone"),
+  sender_city: z.string().trim().max(60).default("Vittoria"),
 });
 export type Preferences = z.infer<typeof preferencesSchema>;
 export const defaultPreferences = preferencesSchema.parse({});

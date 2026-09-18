@@ -184,8 +184,8 @@ describe("provider contracts and conservative enrichment", () => {
       [],
     );
     expect(result.model).toBe("fallback locale");
-    expect(result.text.length).toBeGreaterThanOrEqual(180);
-    expect(result.text.length).toBeLessThanOrEqual(450);
+    expect(result.text.length).toBeGreaterThanOrEqual(350);
+    expect(result.text.length).toBeLessThanOrEqual(900);
   });
   it.each([401, 403, 429])(
     "does not turn HTTP %i access restrictions into a broken-site pitch",
@@ -292,11 +292,29 @@ describe("provider contracts and conservative enrichment", () => {
     expect(mocks.parse).toHaveBeenCalledTimes(1);
     expect(mocks.parse.mock.calls[0][1].timeout).toBeLessThanOrEqual(10_000);
   });
+  it("retries missing QR with feedback and honors only the message model override", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
+    vi.stubEnv("OPENAI_MODEL", "analysis-model-unchanged");
+    vi.stubEnv("OPENAI_MESSAGE_MODEL", "message-model-override");
+    const lead = { ...demoLeads()[0], is_demo: false };
+    const message = fallbackMessage(lead, defaultPreferences);
+    const output = { message, reasonUsed: "no_website", featuresUsed: ["menu", "QR code"], evidence_ids: ["E1"] };
+    mocks.parse.mockResolvedValueOnce({ output_parsed: { ...output, message: message.replace(/, poi ai tavoli[^\n]*/, ""), featuresUsed: ["menu", "foto"] } })
+      .mockResolvedValueOnce({ output_parsed: output });
+    const result = await generateOutreachMessage(lead, defaultPreferences, ["Una bozza precedente diversa"]);
+    expect(result.text).toBe(message);
+    expect(result.model).toBe("message-model-override");
+    expect(mocks.parse).toHaveBeenCalledTimes(2);
+    const retry = mocks.parse.mock.calls[1][0];
+    expect(JSON.parse(retry.input[0].content).validationFeedback.join(" ")).toContain("QR");
+    expect(JSON.parse(retry.input[0].content).recentGeneratedMessages).toEqual(["Una bozza precedente diversa"]);
+    expect(process.env.OPENAI_MODEL).toBe("analysis-model-unchanged");
+  });
   it("uses one prompt, excludes unreliable facts and accepts an attributed draft", async () => {
     vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
     const lead = { ...demoLeads()[0], is_demo: false };
     const text =
-      "Ciao, cercando su Google non ho trovato un vostro sito\nMi occupo di siti per locali della zona e posso farvi un sito vostro con menu aggiornabile foto e contatti tutti in un posto\nVi interesserebbe?";
+      "Ciao, mi chiamo Simone e abito anche io a Vittoria 🙂\nHo visto il vostro locale su Google e cercando il vostro sito non sono riuscito a trovarlo\nMi occupo di siti per locali della zona. Oggi chi esce la sera cerca tutto dal telefono e se trova subito il menu e qualche foto è molto più facile che scelga voi\nPosso farvi un sito tutto vostro su misura con i vostri colori e il menu e ai tavoli un QR che lo apre direttamente\nVi interesserebbe?";
     lead.analysis.evidence.push({
       id: "unreliable",
       kind: "events",
@@ -305,12 +323,14 @@ describe("provider contracts and conservative enrichment", () => {
       confidence: 0.2,
     });
     mocks.parse.mockResolvedValue({
-      output_parsed: { text, evidence_ids: ["E1"] },
+      output_parsed: { message: text, reasonUsed: "no_website", featuresUsed: ["menu", "QR code"], evidence_ids: ["E1"] },
     });
     const result = await generateOutreachMessage(lead, defaultPreferences, []);
     expect(result.text).toBe(text);
     expect(result.warning).toBe("");
     const request = mocks.parse.mock.calls[0][0];
+    expect(request.model).toBe("gpt-5.6-terra");
+    expect(request.reasoning).toEqual({ effort: "low" });
     expect(request.input).toHaveLength(1);
     expect(request.input[0].role).toBe("user");
     expect(request.instructions).not.toContain("DEVI iniziare");
@@ -347,7 +367,7 @@ describe("provider contracts and conservative enrichment", () => {
     expect(result.model).toBe("fallback locale");
     expect(result.text).not.toContain(lead.name);
     expect(result.text).not.toMatch(/[0-9a-f]{8}-[0-9a-f-]{27,}/i);
-    expect(mocks.parse).toHaveBeenCalledTimes(3);
+    expect(mocks.parse).toHaveBeenCalledTimes(2);
   });
   it("rejects AI drafts that leak evidence labels or praise review counts", async () => {
     vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
@@ -361,13 +381,13 @@ describe("provider contracts and conservative enrichment", () => {
     const result = await generateOutreachMessage(lead, defaultPreferences, []);
     expect(result.model).toBe("fallback locale");
     expect(result.text).not.toMatch(/E2|recension|considerati|valere la pena/i);
-    expect(mocks.parse).toHaveBeenCalledTimes(3);
+    expect(mocks.parse).toHaveBeenCalledTimes(2);
   });
   it("regenerates the whole message when the first draft repeats the previous one", async () => {
     vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
     const lead = { ...demoLeads()[0], is_demo: false };
     const previous = fallbackMessage(lead, defaultPreferences, 0);
-    const different = fallbackMessage(lead, defaultPreferences, 2);
+    const different = "Ciao 🙂 mi chiamo Simone e abito anche io a Vittoria\nCercando locali in zona vi ho trovati su Google ma un vostro sito ufficiale non sono riuscito a trovarlo\nCreo siti per bar e ristoranti della zona perché ormai la gente decide dove andare guardando il telefono e un sito curato con menu e foto fa davvero la differenza sulle vendite\nSi potrebbe creare insieme qualcosa di personalizzato come piace a voi con un QR ai tavoli che apre il menu\nChe ne pensate?";
     lead.messages = [
       {
         id: "previous",
@@ -379,16 +399,16 @@ describe("provider contracts and conservative enrichment", () => {
     ];
     mocks.parse
       .mockResolvedValueOnce({
-        output_parsed: { text: previous, evidence_ids: ["E1"] },
+        output_parsed: { message: previous, reasonUsed: "no_website", featuresUsed: ["menu", "QR code"], evidence_ids: ["E1"] },
       })
       .mockResolvedValueOnce({
-        output_parsed: { text: different, evidence_ids: ["E1"] },
+        output_parsed: { message: different, reasonUsed: "no_website", featuresUsed: ["menu", "QR code"], evidence_ids: ["E1"] },
       });
 
     const result = await generateOutreachMessage(lead, defaultPreferences, []);
 
     expect(result.text).toBe(different);
-    expect(result.text.split("\n")[0]).not.toBe(previous.split("\n")[0]);
+    expect(result.text.split("\n")[1]).not.toBe(previous.split("\n")[1]);
     expect(similarity(result.text, previous)).toBeLessThanOrEqual(0.7);
     expect(mocks.parse).toHaveBeenCalledTimes(2);
     const secondRequest = mocks.parse.mock.calls[1][0];
@@ -410,7 +430,7 @@ describe("provider contracts and conservative enrichment", () => {
       [],
     );
     expect(result.model).toBe("fallback locale");
-    expect(mocks.parse).toHaveBeenCalledTimes(3);
+    expect(mocks.parse).toHaveBeenCalledTimes(2);
     mocks.parse.mockClear();
     await generateOutreachMessage(demoLeads()[0], defaultPreferences, []);
     const insufficient = await generateOutreachMessage(

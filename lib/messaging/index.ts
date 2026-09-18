@@ -186,7 +186,7 @@ export function buildOutreachContext(
     };
   const menuFeature =
     lead.category === "Cocktail bar" || lead.category === "Pub"
-      ? "drink list aggiornabile"
+      ? "drink list"
       : [
             "Panificio",
             "Pasticceria",
@@ -196,7 +196,7 @@ export function buildOutreachContext(
             "Altro food",
           ].includes(lead.category)
         ? "prodotti foto e contatti"
-        : "menu aggiornabile";
+        : "menu";
   const suggestedFeatures = [menuFeature, "foto e contatti"];
   if (
     prefs.qr &&
@@ -226,142 +226,170 @@ export function buildOutreachContext(
   };
 }
 
+const productCategories = [
+  "Panificio",
+  "Pasticceria",
+  "Gastronomia",
+  "Gelateria",
+  "Rosticceria",
+  "Altro food",
+];
+const normalizePlace = (value: string) =>
+  value
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .toLocaleLowerCase("it")
+    .trim();
+// First name only, plus where the sender lives when the "local" preference is on.
+export function senderIntro(l: Lead, p: Preferences, variant = 0) {
+  const greeting = p.tone === "molto casual" ? "ciao" : "Ciao";
+  const name = p.sender_name.trim();
+  const city = p.sender_city.trim();
+  if (!name) return `${greeting} 🙂`;
+  const home = !p.local || !city
+    ? ""
+    : normalizePlace(l.city) === normalizePlace(city)
+      ? ` e abito anche io a ${city}`
+      : ` e abito a ${city}${[" qui vicino a voi", " non lontano da voi", ""][variant % 3]}`;
+  return variant % 3 === 1
+    ? `${greeting} 🙂 mi chiamo ${name}${home}`
+    : `${greeting}, mi chiamo ${name}${home} 🙂`;
+}
 export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
   if (!contactable(l)) return "";
   const context = buildOutreachContext(l, p);
   if (context.status !== "ready" || !context.reasonKind) return "";
   const variant = ((index % 15) + 15) % 15;
-  const greeting = p.tone === "molto casual" ? "ciao" : "Ciao";
-  const isProduct = [
-    "Panificio",
-    "Pasticceria",
-    "Gastronomia",
-    "Gelateria",
-    "Rosticceria",
-    "Altro food",
-  ].includes(l.category);
+  const body = variant % 3;
+  const isProduct = productCategories.includes(l.category);
   const menu = ["Pub", "Cocktail bar"].includes(l.category)
-    ? "drink list"
-    : isProduct
+    ? "menu drink"
+    : l.category === "Panificio"
       ? "prodotti"
       : "menu";
-  const contentPackage = isProduct
-    ? "prodotti foto e contatti"
-    : `${menu} aggiornabile foto e contatti`;
-  const updatableMenu = isProduct ? "prodotti e foto" : `${menu} aggiornabile`;
-  const qr = p.qr && !isProduct ? " e QR code" : "";
+  const theMenu = menu === "prodotti" ? "i prodotti" : `il ${menu}`;
+  const toMenu = menu === "prodotti" ? "ai prodotti" : `al ${menu}`;
+  const qr = p.qr && !isProduct;
   const local = p.local ? " della zona" : "";
-  const noWebsiteObservations = context.contactReason.includes("non so")
-    ? [
-        "cercando su Google non sono riuscito a trovare un vostro sito e non so se ne avete già uno",
-        "ho cercato un sito ufficiale del locale ma non l'ho trovato e non so se ne avete già uno",
-        "stavo cercando il vostro sito su Google senza riuscire a trovarlo e non so se esiste già",
-      ]
-    : [
-        "cercando su Google non ho trovato un vostro sito",
-        "ho cercato un sito ufficiale del locale ma non sono riuscito a trovarlo",
-        "stavo cercando il vostro sito su Google ma non ne ho trovato uno",
-      ];
+  const google = [
+    "Ho visto il vostro locale su Google e",
+    "Vi ho trovati su Google e",
+    "Cercando su Google ho trovato il vostro locale e",
+  ][body];
+  const unsure = context.contactReason.includes("non so")
+    ? " e non so se ne avete già uno"
+    : "";
   const copy: Record<
     ContactReasonKind,
     { observations: string[]; pitches: string[] }
   > = {
     no_website: {
-      observations: noWebsiteObservations,
+      observations: [
+        `ho cercato il vostro sito ma non sono riuscito a trovarlo${unsure}`,
+        `stavo cercando il vostro sito ma non ne ho trovato uno${unsure}`,
+        `un vostro sito però non l'ho trovato${unsure}`,
+      ],
       pitches: [
-        `potrei farvene uno vostro con ${contentPackage}${qr}`,
-        `si potrebbe creare un sito fatto bene con ${menu} foto e contatti${qr}`,
-        `potrei realizzare un sito vostro con ${menu} foto e contatti${qr}`,
+        `Il sito lo costruiamo insieme come lo volete voi con i vostri colori e le vostre foto e dentro ci mettiamo ${theMenu}`,
+        `Potrei creare un sito completamente su misura per voi, dalla grafica ${toMenu}`,
+        `Potrei farvene uno tutto vostro e personalizzato sul vostro stile con ${theMenu} e i contatti`,
       ],
     },
     broken_website: {
       observations: [
-        "ho trovato il vostro sito ma sembra che al momento non funzioni",
         "ho provato ad aprire il vostro sito ma al momento non si apre",
-        "stavo guardando il vostro sito ma sembra esserci un problema nell'aprirlo",
+        "ho provato ad aprire anche il vostro sito ma sembra che al momento non funzioni",
+        "stavo guardando il sito ma sembra esserci un problema nell'aprirlo",
       ],
       pitches: [
-        "potrei sistemarlo e renderlo di nuovo comodo da consultare",
-        "si potrebbe rimettere a posto mantenendo le informazioni che avete già",
-        "potrei rifarlo in modo più stabile e curato senza perdere i contenuti",
+        `Ve lo potrei sistemare come piace a voi mantenendo le informazioni che avete già e mettendo bene in vista ${theMenu}`,
+        `Potrei rifarlo su misura per voi, dalla grafica ${toMenu} senza perdere i contenuti che avete già`,
+        `Si potrebbe sistemare e renderlo davvero vostro con i vostri colori e ${theMenu} sempre in vista`,
       ],
     },
     poor_website: {
       observations: [
-        "ho dato un'occhiata al vostro sito e secondo me si potrebbe rendere parecchio più moderno",
+        "ho dato un'occhiata al sito e secondo me si potrebbe rendere parecchio più moderno",
         "stavo guardando il vostro sito e l'aspetto si potrebbe curare molto meglio",
-        "ho visto il vostro sito e secondo me la grafica si potrebbe aggiornare",
+        "poi ho aperto il sito e secondo me la grafica si potrebbe aggiornare",
       ],
       pitches: [
-        `potrei rifarlo mantenendo ${menu} e informazioni che avete già`,
-        `si potrebbe sistemare grafica navigazione e ${menu} senza stravolgere tutto`,
-        `potrei renderlo più curato e più comodo da usare dal telefono`,
+        `Potrei rifarlo su misura per voi con i vostri colori mantenendo ${theMenu} e le informazioni che avete già`,
+        "Si potrebbe sistemare grafica e navigazione come piace a voi senza stravolgere tutto",
+        "Potrei renderlo più curato e comodo dal telefono, completamente personalizzato sul vostro stile",
       ],
     },
     sparse_website: {
       observations: [
-        "ho visto il vostro sito e secondo me è un peccato che ci sia così poco dentro",
+        "poi ho aperto il sito ed è un peccato che ci sia così poco dentro",
         "stavo guardando il vostro sito e ci sono davvero pochi contenuti sull'attività",
         "ho dato un'occhiata al sito e al momento è molto scarno",
       ],
       pitches: [
-        `potrei completarlo con ${menu} foto e contatti tutti in un posto`,
-        `si potrebbe aggiungere quello che manca e renderlo molto più curato`,
-        `potrei sistemare contenuti foto e ${menu} senza stravolgere il sito`,
+        `Potrei completarlo come piace a voi con ${theMenu} e le foto tutti in un posto`,
+        "Si potrebbe aggiungere quello che manca e renderlo su misura per voi con i vostri colori e le vostre foto",
+        `Potrei sistemare contenuti e ${menu} su misura per voi senza stravolgere il sito`,
       ],
     },
     menu_ads: {
       observations: [
-        "stavo guardando il vostro menu online e c'è parecchia pubblicità intorno",
-        "ho aperto il vostro menu e gli annunci lo rendono poco pulito",
+        "ho aperto il menu online ma c'è parecchia pubblicità intorno",
+        "ho aperto il vostro menu ma gli annunci lo rendono poco pulito",
         "ho visto che il menu online è su una piattaforma piena di pubblicità",
       ],
       pitches: [
-        `potrei metterlo su un sito vostro più pulito con ${updatableMenu}${qr}`,
-        `si potrebbe avere un menu vostro senza annunci e più comodo da aprire${qr}`,
-        `potrei creare un sito curato dove aggiornare ${menu} senza quella pubblicità${qr}`,
+        `Potrei mettere ${theMenu} su un sito tutto vostro, pulito e personalizzato come piace a voi`,
+        "Si potrebbe avere un menu vostro senza annunci e fatto su misura con i vostri colori",
+        `Potrei creare un sito come lo volete voi con ${theMenu} senza quella pubblicità`,
       ],
     },
     instagram_menu_only: {
       observations: [
-        "ho visto che il vostro menu si trova principalmente su Instagram",
-        "stavo cercando il vostro menu e ho trovato il link su Instagram",
-        "ho visto il link al vostro menu su Instagram",
+        "il menu si trova principalmente su Instagram",
+        "cercando il menu ho trovato il link su Instagram",
+        "poi ho visto il link al menu su Instagram",
       ],
       pitches: [
-        `potrei metterlo su un sito vostro sempre aggiornabile${qr}`,
-        `si potrebbe consultare ${menu} in un sito più rapido da aprire${qr}`,
-        `potrei creare un sito curato con ${menu} foto e contatti${qr}`,
+        `Potrei mettere ${theMenu} su un sito tutto vostro fatto su misura con i vostri colori e le vostre foto`,
+        `Si potrebbe avere ${theMenu} in un sito vostro personalizzato come piace a voi e più rapido da aprire`,
+        `Potrei creare un sito come lo volete voi con ${theMenu} e le foto del locale`,
       ],
     },
     good_socials_bad_web: {
       observations: [
-        "stavo guardando la vostra pagina e le foto sono curate ma il sito non è allo stesso livello",
+        "poi ho guardato la vostra pagina e le foto sono curate ma il sito non è allo stesso livello",
         "ho visto che sui social curate bene le foto mentre il sito resta molto più scarno",
         "la vostra pagina è curata ma il sito stona un po' col resto",
       ],
       pitches: [
-        `potrei rendere il sito più coerente con le foto e sistemare anche ${menu}`,
-        "si potrebbe creare qualcosa di molto più curato mantenendo lo stile della pagina",
-        `potrei rifare il sito con lo stesso livello di cura e una parte dedicata a ${menu}`,
+        `Potrei rifare il sito su misura con lo stesso stile delle vostre foto e una parte dedicata ${toMenu}`,
+        "Si potrebbe creare qualcosa di molto più curato e personalizzato come piace a voi",
+        `Potrei rendere il sito coerente con la pagina e con i vostri colori sistemando anche ${theMenu}`,
       ],
     },
     events_no_website: {
       observations: [
-        "ho visto che organizzate serate ma non ho trovato un vostro sito dove raccoglierle",
-        "stavo guardando le vostre serate e non ho trovato un sito dove vederle tutte",
-        "ho visto gli eventi che organizzate e non ho trovato un sito del locale",
+        "da quello che vedo organizzate serate ma non ho trovato un vostro sito dove raccoglierle",
+        "stavo guardando le vostre serate ma non ho trovato un sito dove vederle tutte",
+        "ho visto gli eventi che organizzate ma non ho trovato un sito del locale",
       ],
       pitches: [
-        `potrei farvi un sito per le prossime date con ${menu} e contatti`,
-        "si potrebbero raccogliere serate e prossime date in un sito vostro facile da aggiornare",
-        `potrei creare uno spazio curato per gli eventi con ${menu} e informazioni del locale`,
+        `Potrei farvi un sito su misura per le prossime date con ${theMenu} e i contatti`,
+        "Si potrebbero raccogliere serate e prossime date in un sito vostro fatto come piace a voi",
+        `Potrei creare uno spazio per gli eventi personalizzato sul vostro stile con ${theMenu}`,
       ],
     },
   };
   const selected = copy[context.reasonKind];
-  const observation = selected.observations[variant % 3];
-  const pitch = selected.pitches[Math.floor(variant / 3) % 3];
+  // Why a site matters, in plain words and without promising numbers.
+  const why = [
+    `Io faccio siti per locali${local} e oggi tanta gente prima di uscire cerca tutto dal telefono, se trova subito ${theMenu} e le foto in un sito curato è molto più facile che scelga voi`,
+    `Mi occupo proprio di siti per locali${local}. Ormai quasi tutti prima di scegliere dove andare guardano dal telefono e un sito curato con ${theMenu} e le foto fa davvero la differenza anche sulle vendite`,
+    `Creo siti per locali${local} e vi dico la verità, chi vi cerca dal telefono vuole vedere subito ${theMenu} e qualche foto in un sito curato e quando li trova è molto più propenso a passare da voi`,
+  ][body];
+  let pitch = selected.pitches[body];
+  if (qr && !/qr/i.test(pitch))
+    pitch += ", poi ai tavoli si può mettere un QR che apre direttamente il menu";
   const ctas = [
     "Vi interesserebbe?",
     "Potrebbe interessarvi?",
@@ -369,12 +397,13 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
     "Può interessarvi?",
     "Vi potrebbe interessare una cosa del genere?",
   ];
-  const middle = [
-    `mi occupo di siti per locali${local} e ${pitch}`,
-    `faccio siti per locali${local} e ${pitch}`,
-    `creo siti per locali${local} quindi ${pitch}`,
-  ][Math.floor(variant / 5) % 3];
-  return `${greeting}, ${observation}\n${middle}\n${ctas[variant % ctas.length]}`;
+  return [
+    senderIntro(l, p, body),
+    `${google} ${selected.observations[body]}`,
+    why,
+    pitch,
+    ctas[variant % ctas.length],
+  ].join("\n");
 }
 export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
   const trimmed = text.trim();
@@ -431,9 +460,41 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
     return false;
   const lines = trimmed.split(/\n/).filter((line) => line.trim());
   if (
-    lines.length < 2 ||
-    lines.length > 3 ||
-    lines.some((line) => line.length > 220)
+    lines.length < 4 ||
+    lines.length > 6 ||
+    lines.some((line) => line.length > 260)
+  )
+    return false;
+  // A short personal introduction: first name only, never a company pitch.
+  const name = prefs.sender_name.trim();
+  if (
+    name &&
+    !new RegExp(
+      `(?:mi chiamo|sono) ${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+      "i",
+    ).test(lines.slice(0, 2).join(" "))
+  )
+    return false;
+  if (!/su google/i.test(trimmed)) return false;
+  // Why a site sells, without promising numbers.
+  if (
+    !/più facile che|fa (?:davvero )?la differenza|vendit|più propens|scelga voi|scelgano voi|passare da voi|venire da voi/i.test(
+      trimmed,
+    ) ||
+    /\d+\s?%|raddoppi|triplic|garantit/i.test(trimmed)
+  )
+    return false;
+  if (
+    !/come (?:lo |la |li )?(?:volete|preferite)|come piace a voi|su misura|personalizzat|vostri colori|vostro stile/i.test(
+      trimmed,
+    )
+  )
+    return false;
+  // Self-editing the menu is not part of the offer.
+  if (
+    /aggiornabil|in autonomia|(?:aggiorn|modific|gestir|cambiar)\w*[^\n]{0,40}da soli/i.test(
+      trimmed,
+    )
   )
     return false;
   if (
@@ -453,7 +514,13 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
     )
   )
     return false;
-  if ((trimmed.match(/[,;:]/g) || []).length > 2) return false;
+  // Light, casual punctuation: a few commas, at most one full stop inside.
+  if (
+    (trimmed.match(/,/g) || []).length > 5 ||
+    (trimmed.match(/\.(?!\s*$)/gm) || []).length > 1 ||
+    /[;:]/.test(trimmed)
+  )
+    return false;
   if (
     !lead.analysis.evidence.some(
       (e) => e.kind === "curated_social" && e.confidence >= 0.7,
@@ -472,9 +539,10 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
   )
     return false;
   if (
-    text.length < 140 ||
-    text.length > 420 ||
-    /prenotazion|gentile attività|le scrivo per proporle|leader nel settore|soluzioni digitali|potenziare.*business|massimizzare|incrementare.*presenza online|!|\p{Extended_Pictographic}/iu.test(
+    text.length < 300 ||
+    text.length > 900 ||
+    (text.match(/\p{Extended_Pictographic}/gu) || []).length > 2 ||
+    /prenotazion|gentile attività|le scrivo per proporle|leader nel settore|soluzioni digitali|potenziare.*business|massimizzare|incrementare.*presenza online|!/iu.test(
       text,
     )
   )
@@ -486,7 +554,8 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
     return false;
   if (!prefs.free_demo && /demo|gratuit|senza costo/i.test(text)) return false;
   if (!facts.qr && /\bqr\b/i.test(text)) return false;
-  if (!prefs.local && /della zona/i.test(text)) return false;
+  if (!prefs.local && /della zona|abito|qui vicino|non lontano/i.test(text))
+    return false;
   if (
     !facts.unavailable &&
     lead.website_status === "own_website" &&
@@ -506,8 +575,8 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
   )
     return false;
   if (
-    !/(menu|drink list|prodotti|foto|contatti|qr|modern|curat|contenut|grafica|navigazione|telefono|informazioni|annunci|pubblicit|eventi|serate|prossime date|sistem|rifar|rimettere|aggiornabile)/i.test(
-      lines[1],
+    !/(menu|drink list|prodotti|foto|contatti|qr|modern|curat|contenut|grafica|navigazione|telefono|informazioni|annunci|pubblicit|eventi|serate|prossime date|sistem|rifar)/i.test(
+      lines.slice(-2, -1).join(" "),
     )
   )
     return false;

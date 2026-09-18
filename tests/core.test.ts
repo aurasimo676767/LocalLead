@@ -179,8 +179,12 @@ describe("messages and contacts", () => {
             expect(text).not.toMatch(
               /ho visto (?:il vostro menu|le foto)|guardando.*profilo/,
             );
-            expect(text.split("\n")).toHaveLength(3);
-            expect(text.match(/[,;:]/g)?.length || 0).toBeLessThanOrEqual(2);
+            expect(text.split("\n")).toHaveLength(5);
+            expect(text).toMatch(/mi chiamo Simone/);
+            expect(text).toMatch(/su Google/);
+            expect(text).not.toMatch(/aggiornabil|da soli|in autonomia/);
+            expect(text.match(/,/g)?.length || 0).toBeLessThanOrEqual(5);
+            expect(text).not.toMatch(/[;:]/);
             expect(text).toMatch(
               /(Vi interesserebbe|Potrebbe interessarvi|Che ne pensate|Può interessarvi|Vi potrebbe interessare una cosa del genere)\?$/,
             );
@@ -198,11 +202,11 @@ describe("messages and contacts", () => {
     });
     const text = fallbackMessage(lead, defaultPreferences);
     expect(text).toContain(
-      "cercando su Google non sono riuscito a trovare un vostro sito",
+      "non sono riuscito a trovarlo e non so se ne avete già uno",
     );
     expect(
       messageAllowed(
-        text.replace(/cercando[^\n]+/, "non avete un sito"),
+        text.replace(/ho cercato[^\n]+/, "non avete un sito"),
         lead,
         defaultPreferences,
       ),
@@ -237,7 +241,7 @@ describe("messages and contacts", () => {
     });
     const text = fallbackMessage(lead, defaultPreferences);
     expect(text).toContain(
-      "ho trovato il vostro sito ma sembra che al momento non funzioni",
+      "ho provato ad aprire il vostro sito ma al momento non si apre",
     );
     expect(text).not.toMatch(/restyling|rimetter|offline|QR/);
     expect(text).not.toMatch(/offline|QR/);
@@ -319,7 +323,7 @@ describe("messages and contacts", () => {
   it("turns website states into human observations and concrete value", () => {
     const none = demoLeads()[0];
     expect(fallbackMessage(none, defaultPreferences)).toContain(
-      "cercando su Google non ho trovato un vostro sito",
+      "ho cercato il vostro sito ma non sono riuscito a trovarlo",
     );
     const unknown = base();
     expect(fallbackMessage(unknown, defaultPreferences)).toBe("");
@@ -337,7 +341,7 @@ describe("messages and contacts", () => {
       },
     ];
     expect(fallbackMessage(broken, defaultPreferences)).toContain(
-      "ho trovato il vostro sito ma sembra che al momento non funzioni",
+      "ho provato ad aprire il vostro sito ma al momento non si apre",
     );
     const poor = {
       ...demoLeads()[4],
@@ -369,7 +373,7 @@ describe("messages and contacts", () => {
       expect(
         messageAllowed(
           valid.replace(
-            "cercando su Google non ho trovato un vostro sito",
+            "ho cercato il vostro sito ma non sono riuscito a trovarlo",
             phrase,
           ),
           lead,
@@ -378,9 +382,8 @@ describe("messages and contacts", () => {
         phrase,
       ).toBe(false);
     }
-    expect(valid).toMatch(
-      /menu aggiornabile|prodotti foto|drink list aggiornata/,
-    );
+    expect(valid).toMatch(/il menu|i prodotti|il menu drink/);
+    expect(valid).toMatch(/come lo volete voi|su misura|personalizzat/);
   });
   it("rejects a generic pitch even when the lead has evidence", () => {
     const lead = demoLeads()[0];
@@ -629,7 +632,7 @@ describe("CRM and import", () => {
       ]),
     );
     expect(fallbackMessage(updated, defaultPreferences)).toContain(
-      "sembra che al momento non funzioni",
+      "al momento non si apre",
     );
   });
   it("records manual contact with channel", () => {

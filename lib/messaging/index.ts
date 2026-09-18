@@ -245,15 +245,13 @@ export function senderIntro(l: Lead, p: Preferences, variant = 0) {
   const greeting = p.tone === "molto casual" ? "ciao" : "Ciao";
   const name = p.sender_name.trim();
   const city = p.sender_city.trim();
-  if (!name) return `${greeting} 🙂`;
+  if (!name) return greeting;
   const home = !p.local || !city
     ? ""
     : normalizePlace(l.city) === normalizePlace(city)
       ? ` e abito anche io a ${city}`
       : ` e abito a ${city}${[" qui vicino a voi", " non lontano da voi", ""][variant % 3]}`;
-  return variant % 3 === 1
-    ? `${greeting} 🙂 mi chiamo ${name}${home}`
-    : `${greeting}, mi chiamo ${name}${home} 🙂`;
+  return `${greeting}, mi chiamo ${name}${home}`;
 }
 export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
   if (!contactable(l)) return "";
@@ -541,7 +539,8 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
   if (
     text.length < 300 ||
     text.length > 900 ||
-    (text.match(/\p{Extended_Pictographic}/gu) || []).length > 2 ||
+    // Emoji arrive as "\uFFFD" in WhatsApp drafts.
+    /\p{Extended_Pictographic}/u.test(text) ||
     /prenotazion|gentile attività|le scrivo per proporle|leader nel settore|soluzioni digitali|potenziare.*business|massimizzare|incrementare.*presenza online|!/iu.test(
       text,
     )

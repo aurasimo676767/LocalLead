@@ -524,8 +524,10 @@ describe("messages and contacts", () => {
     expect(whatsappCheckUrl(l, "ciao")).toContain(
       "api.whatsapp.com/send?phone=393331234567",
     );
-    // Emoji travel as UTF-8 percent escapes, never as a replacement character.
-    expect(whatsappCheckUrl(l, "ciao 🙂")).toContain("text=ciao%20%F0%9F%99%82");
+    // Emoji from older drafts are dropped instead of arriving as "?".
+    expect(
+      whatsappCheckUrl(l, "Ciao 🙂 mi chiamo Simone 🙂\nChe ne pensate?"),
+    ).toContain("text=Ciao%20mi%20chiamo%20Simone%0AChe%20ne%20pensate%3F");
   });
 });
 describe("website classification", () => {

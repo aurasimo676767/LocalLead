@@ -337,7 +337,7 @@ describe("provider contracts and conservative enrichment", () => {
     vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
     const lead = { ...demoLeads()[0], is_demo: false };
     const text =
-      "Ciao, mi chiamo Simone e abito anche io a Vittoria 🙂\nHo visto il vostro locale su Google e cercando il vostro sito non sono riuscito a trovarlo\nMi occupo di siti per locali della zona. Oggi chi esce la sera cerca tutto dal telefono e se trova subito il menu e qualche foto è molto più facile che scelga voi\nPosso farvi un sito tutto vostro su misura con i vostri colori e il menu e ai tavoli un QR che lo apre direttamente\nVi interesserebbe?";
+      "Ciao, mi chiamo Simone e abito anche io a Vittoria\nHo visto il vostro locale su Google e cercando il vostro sito non sono riuscito a trovarlo\nMi occupo di siti per locali della zona. Oggi chi esce la sera cerca tutto dal telefono e se trova subito il menu e qualche foto è molto più facile che scelga voi\nPosso farvi un sito tutto vostro su misura con i vostri colori e il menu e ai tavoli un QR che lo apre direttamente\nVi interesserebbe?";
     lead.analysis.evidence.push({
       id: "unreliable",
       kind: "events",
@@ -410,7 +410,7 @@ describe("provider contracts and conservative enrichment", () => {
     vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
     const lead = { ...demoLeads()[0], is_demo: false };
     const previous = fallbackMessage(lead, defaultPreferences, 0);
-    const different = "Ciao 🙂 mi chiamo Simone e abito anche io a Vittoria\nCercando locali in zona vi ho trovati su Google ma un vostro sito ufficiale non sono riuscito a trovarlo\nCreo siti per bar e ristoranti della zona perché ormai la gente decide dove andare guardando il telefono e un sito curato con menu e foto fa davvero la differenza sulle vendite\nSi potrebbe creare insieme qualcosa di personalizzato come piace a voi con un QR ai tavoli che apre il menu\nChe ne pensate?";
+    const different = "Ciao, sono Simone e abito anche io a Vittoria\nCercando locali in zona vi ho trovati su Google ma un vostro sito ufficiale non sono riuscito a trovarlo\nCreo siti per bar e ristoranti della zona perché ormai la gente decide dove andare guardando il telefono e un sito curato con menu e foto fa davvero la differenza sulle vendite\nSi potrebbe creare insieme qualcosa di personalizzato come piace a voi con un QR ai tavoli che apre il menu\nChe ne pensate?";
     lead.messages = [
       {
         id: "previous",

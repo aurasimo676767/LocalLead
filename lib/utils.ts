@@ -123,14 +123,9 @@ export function duplicate(lead: Lead, existing: Lead[]) {
   }
   return undefined;
 }
-// WhatsApp can show emoji in a prefilled draft as "?": older drafts lose them here.
+// The wa.me redirect can mangle emoji into "�" in the chat box.
 const chatUrl = (number: string, message: string) =>
-  `https://api.whatsapp.com/send?phone=${number.slice(1)}&text=${encodeURIComponent(
-    message
-      .replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, "")
-      .replace(/[ \t]{2,}/g, " ")
-      .replace(/ +(\n|$)/g, "$1"),
-  )}`;
+  `https://api.whatsapp.com/send?phone=${number.slice(1)}&text=${encodeURIComponent(message)}`;
 export function whatsappUrl(lead: Lead, message: string) {
   const number = normalizePhone(lead.phone);
   if (

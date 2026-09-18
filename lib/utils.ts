@@ -123,6 +123,9 @@ export function duplicate(lead: Lead, existing: Lead[]) {
   }
   return undefined;
 }
+// The wa.me redirect can mangle emoji into "�" in the chat box.
+const chatUrl = (number: string, message: string) =>
+  `https://api.whatsapp.com/send?phone=${number.slice(1)}&text=${encodeURIComponent(message)}`;
 export function whatsappUrl(lead: Lead, message: string) {
   const number = normalizePhone(lead.phone);
   if (
@@ -134,10 +137,10 @@ export function whatsappUrl(lead: Lead, message: string) {
     )
   )
     return "";
-  return `https://wa.me/${number.slice(1)}?text=${encodeURIComponent(message)}`;
+  return chatUrl(number, message);
 }
 export function whatsappCheckUrl(lead: Lead, message: string) {
   const number = normalizePhone(lead.phone);
   if (!number || isLandlinePhone(number) || !contactable(lead)) return "";
-  return `https://wa.me/${number.slice(1)}?text=${encodeURIComponent(message)}`;
+  return chatUrl(number, message);
 }

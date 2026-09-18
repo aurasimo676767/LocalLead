@@ -521,7 +521,11 @@ describe("messages and contacts", () => {
       phone: "3331234567",
       whatsapp_confidence: "uncertain" as const,
     };
-    expect(whatsappCheckUrl(l, "ciao")).toContain("wa.me/393331234567");
+    expect(whatsappCheckUrl(l, "ciao")).toContain(
+      "api.whatsapp.com/send?phone=393331234567",
+    );
+    // Emoji travel as UTF-8 percent escapes, never as a replacement character.
+    expect(whatsappCheckUrl(l, "ciao 🙂")).toContain("text=ciao%20%F0%9F%99%82");
   });
 });
 describe("website classification", () => {

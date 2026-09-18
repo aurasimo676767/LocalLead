@@ -1,4 +1,9 @@
+import { Suspense } from "react";
 import { Discover } from "@/components/discover";
 export default function Page() {
-  return <Discover />;
+  return (
+    <Suspense>
+      <Discover />
+    </Suspense>
+  );
 }

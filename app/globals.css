@@ -1617,6 +1617,168 @@ summary {
   background: #14251d80;
   z-index: 29;
 }
+/* Leads by city: tabs, a summary of the selected city and compact filters. */
+.city-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  margin: 0 -2px 18px;
+  scrollbar-width: thin;
+}
+.city-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+.city-tabs button span {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.city-tabs button:hover {
+  border-color: var(--green);
+}
+.city-tabs button.active {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--surface);
+}
+.city-tabs button.active span {
+  color: inherit;
+  opacity: 0.75;
+}
+.city-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 22px 24px;
+  margin-bottom: 18px;
+  border-radius: 10px;
+  background: var(--green-soft);
+}
+.city-summary h2 {
+  font-size: 26px;
+  line-height: 1.15;
+  margin: 0 0 4px;
+}
+.city-summary p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.city-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.button.secondary.danger {
+  color: #a4513f;
+}
+.button.secondary.danger:hover {
+  border-color: #a4513f;
+  color: #a4513f;
+}
+.button.danger-solid {
+  background: #a4513f;
+  border-color: #a4513f;
+}
+:root[data-theme="dark"] .button.secondary.danger,
+:root[data-theme="dark"] .button.secondary.danger:hover {
+  color: #e59a88;
+}
+.modal > svg.danger-icon {
+  color: #a4513f;
+}
+.modal .toggle-row {
+  margin: 20px 0 4px;
+}
+.filter-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.filter-bar .search-input {
+  flex: 1;
+  margin: 0;
+}
+.filter-bar select {
+  width: auto;
+  min-width: 150px;
+}
+.button.secondary.on {
+  border-color: var(--green);
+  color: var(--green);
+}
+.filter-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--green);
+  color: var(--surface);
+  font-size: 10px;
+}
+.filter-bar + .filter-grid {
+  margin-top: 18px;
+  grid-template-columns: repeat(5, 1fr);
+}
+.searched-cities {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: -6px 0 18px;
+}
+.searched-cities button {
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 12px;
+}
+.searched-cities button:hover {
+  border-color: var(--green);
+}
+.searched-cities small {
+  color: var(--muted);
+  margin-left: 4px;
+}
+@media (max-width: 720px) {
+  .filter-bar {
+    flex-wrap: wrap;
+  }
+  .filter-bar .search-input {
+    flex-basis: 100%;
+  }
+  .filter-bar select {
+    flex: 1 1 calc(50% - 5px);
+    min-width: 0;
+  }
+  .filter-bar > .button {
+    flex-basis: 100%;
+  }
+  .filter-bar + .filter-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .city-summary {
+    padding: 18px;
+  }
+  .city-actions,
+  .city-actions .button {
+    width: 100%;
+  }
+}
 @media (min-width: 1550px) {
   main {
     padding: 48px 52px;

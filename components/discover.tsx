@@ -1,15 +1,34 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ScanSearch, MapPin, ArrowRight, Check } from "lucide-react";
 import { useWorkspace, useTask } from "./workspace";
 import { PageHeading, Field, ErrorText, Score, Status } from "./ui";
 import { categories, type Lead } from "@/lib/model";
 import { fitsFilter } from "@/lib/scoring";
 export function Discover() {
-  const { command, config } = useWorkspace();
+  const { command, config, leads, preferences } = useWorkspace();
   const task = useTask();
-  const [city, setCity] = useState("Vittoria, RG");
+  const params = useSearchParams();
+  const [city, setCity] = useState(
+    () => params.get("city") || preferences.sender_city || "Vittoria",
+  );
+  // Cities already in the workspace: a new search there only adds new places.
+  const searched = [
+    ...leads
+      .reduce((map, l) => {
+        const key = l.city.trim().toLocaleLowerCase("it");
+        if (key)
+          map.set(key, {
+            name: l.city.trim(),
+            count: (map.get(key)?.count || 0) + 1,
+          });
+        return map;
+      }, new Map<string, { name: string; count: number }>())
+      .values(),
+  ].sort((a, b) => b.count - a.count);
+  const [skipped, setSkipped] = useState(0);
   const [selected, setSelected] = useState<Lead["category"][]>([
     "Pizzeria",
     "Bar",
@@ -27,6 +46,7 @@ export function Discover() {
     await task.run(async () => {
       setWarnings([]);
       setResults(null);
+      setSkipped(0);
       setProgress("Ricerca delle attività…");
       const r = await command("discover", {
         city,
@@ -34,11 +54,11 @@ export function Discover() {
         limit,
         filter,
       });
-      const rows = r.results || [];
+      const rows = (r.results || []).filter((row) => !row.duplicate);
+      setSkipped(r.skipped || 0);
       setResults(rows);
       const completed = [...rows];
       for (let i = 0; i < rows.length; i++) {
-        if (rows[i].duplicate) continue;
         setProgress(`Analisi ${i + 1} di ${rows.length}: ${rows[i].lead.name}`);
         try {
           const analyzed = await command("analyze", undefined, rows[i].lead.id);
@@ -76,7 +96,7 @@ export function Discover() {
           </div>
           <Field
             label="Città"
-            hint="Specifica la provincia per una ricerca più precisa."
+            hint="I locali che hai già trovato qui vengono saltati: la ricerca aggiunge solo quelli nuovi."
           >
             <div className="input-icon">
               <MapPin size={17} />
@@ -89,6 +109,20 @@ export function Discover() {
               />
             </div>
           </Field>
+          {searched.length > 0 && (
+            <div className="searched-cities" aria-label="Città già cercate">
+              {searched.slice(0, 8).map((c) => (
+                <button
+                  type="button"
+                  key={c.name}
+                  onClick={() => setCity(c.name)}
+                >
+                  {c.name}
+                  <small>{c.count} già trovati</small>
+                </button>
+              ))}
+            </div>
+          )}
           <fieldset>
             <legend>Categorie</legend>
             <div className="category-grid">
@@ -145,7 +179,7 @@ export function Discover() {
             ) : (
               <ScanSearch size={17} />
             )}{" "}
-            {task.busy ? "Ricerca in corso…" : "Cerca lead"}
+            {task.busy ? "Ricerca in corso…" : "Cerca locali nuovi"}
             <ArrowRight size={17} />
           </button>
           <small className="muted">
@@ -191,11 +225,14 @@ export function Discover() {
               <h2>
                 {task.busy
                   ? progress
-                  : `${visible?.length || 0} opportunità da rivedere`}
+                  : visible?.length === 1
+                    ? "1 locale nuovo"
+                    : `${visible?.length || 0} locali nuovi`}
               </h2>
               <p>
-                I duplicati mantengono stato e cronologia. I lead esclusi non
-                vengono riproposti.
+                {skipped > 0
+                  ? `${skipped} già trovati o cancellati prima sono stati saltati.`
+                  : "Tutti i risultati sono locali che non avevi ancora."}
               </p>
             </div>
           </div>
@@ -206,7 +243,7 @@ export function Discover() {
                 <Link href={`/leads/${r.lead.id}`}>
                   <strong>{r.lead.name}</strong>
                 </Link>
-                <p>{r.duplicate ? "Lead già presente" : r.lead.main_problem}</p>
+                <p>{r.lead.main_problem}</p>
               </div>
               <Status lead={r.lead} />
               <Link
@@ -219,8 +256,9 @@ export function Discover() {
           ))}
           {!task.busy && !visible?.length && (
             <div className="empty-state">
-              Nessun risultato con questi criteri. Prova altre categorie o un
-              filtro più ampio.
+              {skipped > 0
+                ? "Nessun locale nuovo: quelli trovati li avevi già. Prova altre categorie o una città vicina."
+                : "Nessun risultato con questi criteri. Prova altre categorie o un filtro più ampio."}
             </div>
           )}
           {warnings.map((w) => (

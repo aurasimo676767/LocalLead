@@ -43,6 +43,7 @@ Con Supabase attivo ma senza Google, il CRM è reale e la ricerca restituisce fi
 
 1. Crea un progetto Supabase.
 2. Esegui integralmente `supabase/migrations/001_locallead.sql` nell'SQL Editor (oppure con Supabase CLI su un database vuoto).
+   Poi esegui `supabase/migrations/002_delete_leads.sql` (cancellazione dei lead e memoria dei locali scartati).
 3. Inserisci URL e anon key in `.env.local`; imposta `DEMO_MODE=false`.
 4. In Auth → URL Configuration imposta Site URL all'origine dell'app e autorizza `http://localhost:3000/auth/callback` e `https://tuo-dominio/auth/callback` nelle Redirect URLs.
 5. Abilita Email/Password; registra l'account da `/login`, conferma l'email e accedi. Per uso personale puoi disabilitare nuove registrazioni dopo aver creato il tuo account.

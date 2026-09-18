@@ -72,3 +72,31 @@ export async function saveLead(
     );
   return data as { id: string; duplicate: boolean };
 }
+export async function dismissedKeys(db: SupabaseClient) {
+  const keys: string[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await db
+      .from("dismissed_keys")
+      .select("key")
+      .range(offset, offset + 999);
+    // Before migration 002 there is nothing to skip.
+    if (error) return keys;
+    keys.push(...data.map((row) => row.key as string));
+    if (data.length < 1000) return keys;
+  }
+}
+export async function deleteLeads(
+  db: SupabaseClient,
+  ids: string[],
+  remember: boolean,
+) {
+  const { data, error } = await db.rpc("delete_leads", {
+    p_ids: ids,
+    p_remember: remember,
+  });
+  if (error)
+    throw new Error(
+      "Cancellazione non disponibile: esegui la migrazione 002 su Supabase",
+    );
+  return (data || []) as string[];
+}

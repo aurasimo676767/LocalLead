@@ -28,6 +28,9 @@ describe("actual Postgres migration, RLS and atomic dedup", () => {
     await db.exec(
       readFileSync(resolve("supabase/migrations/001_locallead.sql"), "utf8"),
     );
+    await db.exec(
+      readFileSync(resolve("supabase/migrations/002_delete_leads.sql"), "utf8"),
+    );
     await db.query(
       "insert into auth.users(id,email) values ($1,'alice@example.com'),($2,'bob@example.com')",
       [alice, bob],
@@ -141,5 +144,39 @@ describe("actual Postgres migration, RLS and atomic dedup", () => {
     await save(update, lead.updated_at);
     const rediscovered = { ...lead, id: uid() };
     expect((await save(rediscovered)).rows[0].result.duplicate).toBe(true);
+  });
+  it("bulk delete keeps contacted and opted-out leads and remembers the rest", async () => {
+    const fresh = newLead({
+      name: "Bar Da Cancellare",
+      city: "Comiso",
+      category: "Bar",
+      place_id: "place-delete",
+      user_id: alice,
+    });
+    const forgotten = newLead({
+      name: "Pub Da Dimenticare",
+      city: "Comiso",
+      category: "Pub",
+      place_id: "place-forget",
+      user_id: alice,
+    });
+    await save(fresh);
+    await save(forgotten);
+    const deleted = await db.query<{ ids: string[] }>(
+      "select public.delete_leads($1::uuid[], true) as ids",
+      [[fresh.id, lead.id]],
+    );
+    // The seed lead has contact history and an opt-out: it must survive.
+    expect(deleted.rows[0].ids).toEqual([fresh.id]);
+    expect((await db.query("select id from leads where id=$1", [lead.id])).rows).toHaveLength(1);
+    await db.query("select public.delete_leads($1::uuid[], false)", [[forgotten.id]]);
+    const keys = (
+      await db.query<{ key: string }>("select key from dismissed_keys")
+    ).rows.map((row) => row.key);
+    expect(keys).toContain("place:place-delete");
+    expect(keys).not.toContain("place:place-forget");
+    await asUser(bob);
+    expect((await db.query("select * from dismissed_keys")).rows).toHaveLength(0);
+    await asUser(alice);
   });
 });

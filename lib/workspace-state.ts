@@ -7,6 +7,8 @@ export type WorkspaceResult = {
   preferences?: Preferences;
   warning?: string;
   importErrors?: { index: number; error: string }[];
+  deleted?: string[];
+  skipped?: number;
 };
 
 // Merge complete server records, preserving unrelated leads and newer responses.
@@ -15,6 +17,7 @@ export function mergeWorkspaceResult(
   result: WorkspaceResult,
 ): Workspace {
   const records = new Map(current.leads.map((lead) => [lead.id, lead]));
+  for (const id of result.deleted || []) records.delete(id);
   const incoming = result.lead
     ? [result.lead]
     : (result.results || []).map((entry) => entry.lead);
@@ -24,6 +27,7 @@ export function mergeWorkspaceResult(
       records.set(lead.id, lead);
   }
   return {
+    ...current,
     leads: [...records.values()].sort((a, b) =>
       b.created_at.localeCompare(a.created_at),
     ),

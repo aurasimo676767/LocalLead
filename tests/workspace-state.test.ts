@@ -37,4 +37,13 @@ describe("workspace response updates", () => {
     expect(result.leads).toHaveLength(1);
     expect(result.preferences.qr).toBe(false);
   });
+  it("removes deleted records", () => {
+    const a = newLead({ name: "Locale A", city: "Ragusa", category: "Bar" });
+    const b = newLead({ name: "Locale B", city: "Ragusa", category: "Bar" });
+    const result = mergeWorkspaceResult(
+      { leads: [a, b], preferences: defaultPreferences },
+      { deleted: [a.id] },
+    );
+    expect(result.leads.map((lead) => lead.id)).toEqual([b.id]);
+  });
 });

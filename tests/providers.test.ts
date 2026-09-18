@@ -83,6 +83,29 @@ describe("provider contracts and conservative enrichment", () => {
       "next",
     );
   });
+  it("skips places already found and keeps searching with other phrasings", async () => {
+    const place = (id: string, phone: string) => ({
+      id,
+      displayName: { text: id },
+      internationalPhoneNumber: phone,
+    });
+    mocks.providerJson
+      .mockResolvedValueOnce({ places: [place("old", "+39 3331234567")] })
+      .mockResolvedValueOnce({ places: [place("new", "+39 3331234568")] });
+    let skipped = 0;
+    const rows = await new GooglePlacesProvider().searchBusinesses({
+      city: "Vittoria",
+      categories: ["Bar"],
+      limit: 10,
+      known: new Set(["place:old"]),
+      onSkip: () => skipped++,
+    });
+    expect(rows.map((row) => row.place_id)).toEqual(["new"]);
+    expect(skipped).toBe(1);
+    expect(JSON.parse(mocks.providerJson.mock.calls[1][1].body).textQuery).toBe(
+      "caffetteria a Vittoria",
+    );
+  });
   it("stores Brave links as candidates with provenance", async () => {
     mocks.providerJson.mockResolvedValue({
       web: {

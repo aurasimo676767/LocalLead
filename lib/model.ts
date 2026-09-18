@@ -195,7 +195,12 @@ export const preferencesSchema = z.object({
 });
 export type Preferences = z.infer<typeof preferencesSchema>;
 export const defaultPreferences = preferencesSchema.parse({});
-export type Workspace = { leads: Lead[]; preferences: Preferences };
+export type Workspace = {
+  leads: Lead[];
+  preferences: Preferences;
+  // Demo only: keys of removed leads (live mode keeps them in Supabase).
+  dismissed?: string[];
+};
 export type PublicConfig = {
   demo: boolean;
   places: string;
@@ -269,6 +274,11 @@ export const contacted = (l: Lead) =>
     "no_reply",
     "not_interested",
   ].includes(l.status);
+// Bulk delete keeps opt-outs and anything with contact history.
+export const deletable = (l: Lead) =>
+  !l.do_not_contact &&
+  !contacted(l) &&
+  !l.events.some((e) => e.event_type === "do_not_contact");
 export const contactable = (l: Lead) =>
   !l.do_not_contact &&
   !l.analysis.permanently_closed &&

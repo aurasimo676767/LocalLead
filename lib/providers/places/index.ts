@@ -1,13 +1,33 @@
 import "server-only";
 import { demoLeads } from "../../demo";
 import { newLead, now, uid, type Lead } from "../../model";
-import { isLandlinePhone, normalizePhone, safeUrl } from "../../utils";
+import { dedupKeys, isLandlinePhone, normalizePhone, safeUrl } from "../../utils";
 import { providerJson } from "../http";
 export type SearchInput = {
   city: string;
   categories: Lead["category"][];
   limit: number;
+  // Dedup keys of places already found or removed: skipped while paging.
+  known?: Set<string>;
+  onSkip?: () => void;
 };
+// Extra phrasings reach places beyond the 60 results of a single query.
+const queryVariants: Record<Lead["category"], string[]> = {
+  Pizzeria: ["pizzeria", "pizza da asporto", "pizzeria forno a legna"],
+  Panineria: ["panineria", "paninoteca", "hamburgeria"],
+  Ristorante: ["ristorante", "trattoria", "osteria"],
+  Bar: ["bar", "caffetteria", "bar colazioni"],
+  Pub: ["pub", "birreria"],
+  "Cocktail bar": ["cocktail bar", "wine bar", "lounge bar"],
+  Pasticceria: ["pasticceria", "pasticceria artigianale"],
+  Gelateria: ["gelateria", "gelateria artigianale"],
+  Panificio: ["panificio", "forno pane"],
+  Gastronomia: ["gastronomia", "salumeria"],
+  Rosticceria: ["rosticceria", "tavola calda"],
+  "Altro food": ["street food", "cibo da asporto"],
+};
+const isKnown = (lead: Lead, known?: Set<string>) =>
+  !!known && dedupKeys(lead).some((key) => known.has(key));
 export interface LocalBusinessProvider {
   searchBusinesses(input: SearchInput): Promise<Lead[]>;
   getBusinessDetails(placeId: string): Promise<Lead>;
@@ -123,52 +143,58 @@ export class GooglePlacesProvider implements LocalBusinessProvider {
   }
   async searchBusinesses(input: SearchInput) {
     const found: Lead[] = [];
+    const seen = new Set<string>();
     const started = Date.now();
+    const budget = () => Date.now() - started < 25000;
     let partial = false;
     // Allocate a quota per category, with a hard time/page budget for serverless requests.
     const quota = Math.ceil(input.limit / input.categories.length);
     for (const category of input.categories) {
-      if (Date.now() - started > 25000) {
-        partial = true;
-        break;
-      }
-      let token: string | undefined;
       let count = 0;
-      let pages = 0;
-      do {
-        const json = (await providerJson(
-          "https://places.googleapis.com/v1/places:searchText",
-          {
-            method: "POST",
-            headers: this.headers("places."),
-            body: JSON.stringify({
-              textQuery: `${category} a ${input.city}`,
-              languageCode: "it",
-              regionCode: "IT",
-              pageSize: Math.min(20, quota - count),
-              ...(token ? { pageToken: token } : {}),
-            }),
-          },
-        )) as { places?: Place[]; nextPageToken?: string };
-        for (const p of json.places || [])
-          if (
-            normalizePhone(p.internationalPhoneNumber || "") &&
-            !isLandlinePhone(p.internationalPhoneNumber || "") &&
-            !found.some((l) => l.place_id === p.id)
-          ) {
-            found.push(this.map(p, category, input.city));
+      for (const phrase of queryVariants[category]) {
+        let token: string | undefined;
+        let pages = 0;
+        do {
+          if (!budget()) {
+            partial = true;
+            break;
+          }
+          const json = (await providerJson(
+            "https://places.googleapis.com/v1/places:searchText",
+            {
+              method: "POST",
+              headers: this.headers("places."),
+              body: JSON.stringify({
+                textQuery: `${phrase} a ${input.city}`,
+                languageCode: "it",
+                regionCode: "IT",
+                pageSize: 20,
+                ...(token ? { pageToken: token } : {}),
+              }),
+            },
+          )) as { places?: Place[]; nextPageToken?: string };
+          for (const p of json?.places || []) {
+            if (seen.has(p.id) || count >= quota) continue;
+            seen.add(p.id);
+            if (
+              !normalizePhone(p.internationalPhoneNumber || "") ||
+              isLandlinePhone(p.internationalPhoneNumber || "")
+            )
+              continue;
+            const lead = this.map(p, category, input.city);
+            if (isKnown(lead, input.known)) {
+              input.onSkip?.();
+              continue;
+            }
+            found.push(lead);
             count++;
           }
-        token = json.nextPageToken;
-        pages++;
-      } while (
-        token &&
-        count < quota &&
-        found.length < input.limit &&
-        pages < 3 &&
-        Date.now() - started < 25000
-      );
-      if (found.length >= input.limit) break;
+          token = json?.nextPageToken;
+          pages++;
+        } while (token && count < quota && pages < 3);
+        if (count >= quota || partial) break;
+      }
+      if (found.length >= input.limit || partial) break;
     }
     if (partial)
       for (const l of found)
@@ -188,10 +214,13 @@ export class GooglePlacesProvider implements LocalBusinessProvider {
 }
 export class DemoPlacesProvider implements LocalBusinessProvider {
   async searchBusinesses(input: SearchInput) {
-    return demoLeads()
+    const fresh = [];
+    for (const l of demoLeads()
       .filter((l) => normalizePhone(l.phone))
-      .filter((l) => input.categories.includes(l.category))
-      .slice(0, input.limit);
+      .filter((l) => input.categories.includes(l.category)))
+      if (isKnown(l, input.known)) input.onSkip?.();
+      else fresh.push(l);
+    return fresh.slice(0, input.limit);
   }
   async getBusinessDetails(id: string) {
     const l = demoLeads().find((l) => l.place_id === id);

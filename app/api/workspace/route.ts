@@ -4,6 +4,8 @@ import { publicConfig } from "@/lib/config";
 import { supabaseServer } from "@/lib/supabase/server";
 import {
   allLeads,
+  deleteLeads,
+  dismissedKeys,
   getLead,
   getWorkspace,
   getPreferences,
@@ -15,7 +17,7 @@ import { manualSources, patchLead } from "@/lib/lead-actions";
 import { placesProvider } from "@/lib/providers/places";
 import { enrichLead } from "@/lib/enrichment";
 import { analyzeLead, generateOutreachMessage } from "@/lib/ai";
-import { duplicate, normalizePhone } from "@/lib/utils";
+import { dedupKeys, duplicate, normalizePhone } from "@/lib/utils";
 import { scoreLead } from "@/lib/scoring";
 import { buildOutreachContext } from "@/lib/messaging";
 export const runtime = "nodejs";
@@ -103,6 +105,7 @@ export async function POST(req: NextRequest) {
           "save_message",
           "discover",
           "settings",
+          "delete",
         ]),
         id: z.uuid().optional(),
         data: z.unknown().optional(),
@@ -122,29 +125,53 @@ export async function POST(req: NextRequest) {
       if (error) throw new Error("Preferenze non salvate");
       return NextResponse.json({ preferences: prefs });
     }
+    if (body.action === "delete") {
+      const input = z
+        .object({
+          ids: z.array(z.uuid()).min(1).max(2000),
+          remember: z.boolean().default(true),
+        })
+        .parse(body.data);
+      return NextResponse.json({
+        deleted: await deleteLeads(db, input.ids, input.remember),
+      });
+    }
     if (body.action === "discover") {
       const input = discoverySchema.parse(body.data);
-      const found = await placesProvider().searchBusinesses(input);
       const existing = await allLeads(db);
+      // Places already in the workspace or removed before are never proposed again.
+      const known = new Set([
+        ...existing.flatMap((l) => dedupKeys(l)),
+        ...(await dismissedKeys(db)),
+      ]);
+      let skipped = 0;
+      const found = await placesProvider().searchBusinesses({
+        ...input,
+        known,
+        onSkip: () => skipped++,
+      });
       const results = [];
       for (const candidate of found) {
-        const prev = duplicate(candidate, existing);
-        if (prev?.do_not_contact) continue;
-        if (prev) {
-          if (!normalizePhone(prev.phone)) continue;
-          results.push({ lead: prev, duplicate: true });
+        if (duplicate(candidate, existing)) {
+          skipped++;
           continue;
         }
         candidate.user_id = user.id;
         const l = scoreLead(candidate);
         const saved = await saveLead(db, l);
-        const stored = saved.duplicate ? await getLead(db, saved.id) : l;
-        if (stored.do_not_contact) continue;
-        if (!normalizePhone(stored.phone)) continue;
-        results.push({ lead: stored, duplicate: saved.duplicate });
-        existing.push(stored);
+        if (saved.duplicate) {
+          skipped++;
+          continue;
+        }
+        if (!normalizePhone(l.phone)) continue;
+        results.push({ lead: l, duplicate: false });
+        existing.push(l);
       }
-      return NextResponse.json({ results, demo: found.some((l) => l.is_demo) });
+      return NextResponse.json({
+        results,
+        skipped,
+        demo: found.some((l) => l.is_demo),
+      });
     }
     if (body.action === "create") {
       let lead = manualSources(

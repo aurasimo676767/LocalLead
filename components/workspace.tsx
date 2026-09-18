@@ -12,6 +12,7 @@ import {
   type PublicConfig,
   type Lead,
   contactable,
+  deletable,
   defaultPreferences,
   newLead,
   now,
@@ -21,7 +22,7 @@ import {
 import { demoWorkspace, demoLeads } from "@/lib/demo";
 import { manualSources, patchLead } from "@/lib/lead-actions";
 import { inputSchema, discoverySchema } from "@/lib/validation";
-import { duplicate, normalizePhone } from "@/lib/utils";
+import { dedupKeys, duplicate, normalizePhone } from "@/lib/utils";
 import { scoreLead } from "@/lib/scoring";
 import {
   mergeWorkspaceResult,
@@ -140,20 +141,37 @@ export function WorkspaceProvider({
     else if (action === "discover") {
       const input = discoverySchema.parse(data);
       const results: { lead: Lead; duplicate: boolean }[] = [];
+      const known = new Set([
+        ...current.leads.flatMap((l) => dedupKeys(l)),
+        ...(current.dismissed || []),
+      ]);
+      let skipped = 0;
       for (const candidate of demoLeads()
         .filter((l) => normalizePhone(l.phone))
-        .filter((l) => input.categories.includes(l.category))
-        .slice(0, input.limit)) {
-        const found = duplicate(candidate, current.leads);
-        if (found?.do_not_contact) continue;
-        if (found && !normalizePhone(found.phone)) continue;
-        if (found) results.push({ lead: found, duplicate: true });
-        else {
-          current.leads.push(candidate);
-          results.push({ lead: candidate, duplicate: false });
+        .filter((l) => input.categories.includes(l.category))) {
+        if (dedupKeys(candidate).some((key) => known.has(key))) {
+          skipped++;
+          continue;
         }
+        if (results.length >= input.limit) break;
+        current.leads.push(candidate);
+        results.push({ lead: candidate, duplicate: false });
       }
-      result = { results };
+      result = { results, skipped };
+    } else if (action === "delete") {
+      const input = data as { ids: string[]; remember?: boolean };
+      const ids = new Set(input.ids);
+      const doomed = current.leads.filter((l) => ids.has(l.id) && deletable(l));
+      if (input.remember !== false)
+        current.dismissed = [
+          ...new Set([
+            ...(current.dismissed || []),
+            ...doomed.flatMap((l) => dedupKeys(l)),
+          ]),
+        ];
+      const deleted = new Set(doomed.map((l) => l.id));
+      current.leads = current.leads.filter((l) => !deleted.has(l.id));
+      result = { deleted: [...deleted] };
     } else if (action === "import") {
       if (!Array.isArray(data) || data.length < 1 || data.length > 10)
         throw new Error("Importa da 1 a 10 righe alla volta");

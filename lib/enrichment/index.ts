@@ -11,7 +11,19 @@ import {
   normalizePhone,
 } from "../utils";
 import { scoreLead } from "../scoring";
+import { platformPrefix } from "../messaging";
 const ANALYSIS_VERSION = "reachability-v5";
+function websitePlatform(url: string) {
+  if (hostIs(url, "facebook.com"))
+    return { label: "la pagina Facebook", field: "facebook_url" as const };
+  if (hostIs(url, "instagram.com"))
+    return { label: "il profilo Instagram", field: "instagram_url" as const };
+  if (hostIs(url, "tiktok.com")) return { label: "il profilo TikTok" };
+  if (hostIs(url, "linktr.ee")) return { label: "una pagina Linktree" };
+  if (externalMenu(url) || delivery(url))
+    return { label: "una pagina su una piattaforma esterna" };
+  return null;
+}
 export async function enrichLead(input: Lead): Promise<Lead> {
   if (input.is_demo) return scoreLead(input);
   const hours = Number(process.env.ANALYSIS_CACHE_HOURS || 72);
@@ -25,10 +37,17 @@ export async function enrichLead(input: Lead): Promise<Lead> {
       source.source_type === "website_analysis" &&
       source.metadata_json.analysis_version === ANALYSIS_VERSION,
   );
+  const needsPlatformEvidence =
+    !!input.website_url &&
+    !!websitePlatform(input.website_url) &&
+    !input.analysis.evidence.some(
+      (e) => e.kind === "no_website" && e.text.startsWith(platformPrefix),
+    );
   if (
     input.analysis.analyzed_at &&
     Date.now() - Date.parse(input.analysis.analyzed_at) < hours * 3600_000 &&
-    (!needsWebsiteFetch || hasCurrentWebsiteCheck)
+    (!needsWebsiteFetch || hasCurrentWebsiteCheck) &&
+    !needsPlatformEvidence
   )
     return input;
   const l: Lead = structuredClone(input);
@@ -65,10 +84,24 @@ export async function enrichLead(input: Lead): Promise<Lead> {
   const add = (kind: string, text: string, url: string, confidence = 0.85) =>
     l.analysis.evidence.push({ id: uid(), kind, text, url, confidence });
   if (l.website_url) {
-    if (social(l.website_url)) l.website_status = "social_only";
-    else if (externalMenu(l.website_url) || delivery(l.website_url))
-      l.website_status = "external_page_only";
-    else {
+    // Google's "website" field pointing to a social or third-party page is itself the evidence.
+    const platform = websitePlatform(l.website_url);
+    l.analysis.evidence = l.analysis.evidence.filter(
+      (e) => !(e.kind === "no_website" && e.text.startsWith(platformPrefix)),
+    );
+    if (platform) {
+      l.website_status = social(l.website_url)
+        ? "social_only"
+        : "external_page_only";
+      add(
+        "no_website",
+        `${platformPrefix} ${platform.label}`,
+        l.website_url,
+        0.9,
+      );
+      if (platform.field && !l[platform.field])
+        l[platform.field] = l.website_url;
+    } else {
       l.website_status = "own_website";
       try {
         const page = await publicHtml(l.website_url);

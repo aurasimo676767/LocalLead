@@ -2,6 +2,7 @@ import { contactable, type Lead, type Preferences } from "../model";
 import { websiteFailureEvidence } from "../website-evidence";
 export type ContactReasonKind =
   | "no_website"
+  | "social_only"
   | "broken_website"
   | "poor_website"
   | "sparse_website"
@@ -74,6 +75,8 @@ export function messageFacts(l: Lead, p: Preferences) {
   };
 }
 
+// Written by enrichment when Google's website field is a social or third-party page.
+export const platformPrefix = "Su Google Maps il sito indicato è";
 export function buildOutreachContext(
   lead: Lead,
   prefs: Preferences,
@@ -162,6 +165,11 @@ export function buildOutreachContext(
       url: menuSource.url,
       confidence: menuSource.confidence,
     });
+  } else if (noWebsite?.text.startsWith(platformPrefix)) {
+    // Google lists a Facebook/Instagram page (or similar) as the website.
+    reasonKind = "social_only";
+    contactReason = `su Google come sito del locale c'è ${noWebsite.text.slice(platformPrefix.length).trim()}`;
+    addAttributions(noWebsite);
   } else if (noWebsite) {
     reasonKind = "no_website";
     contactReason =
@@ -235,22 +243,19 @@ const productCategories = [
   "Altro food",
 ];
 const normalizePlace = (value: string) =>
-  value
-    .normalize("NFKD")
-    .replace(/\p{M}/gu, "")
-    .toLocaleLowerCase("it")
-    .trim();
+  value.normalize("NFKD").replace(/\p{M}/gu, "").toLocaleLowerCase("it").trim();
 // First name only, plus where the sender lives when the "local" preference is on.
 export function senderIntro(l: Lead, p: Preferences, variant = 0) {
   const greeting = p.tone === "molto casual" ? "ciao" : "Ciao";
   const name = p.sender_name.trim();
   const city = p.sender_city.trim();
   if (!name) return `${greeting} 🙂`;
-  const home = !p.local || !city
-    ? ""
-    : normalizePlace(l.city) === normalizePlace(city)
-      ? ` e abito anche io a ${city}`
-      : ` e abito a ${city}${[" qui vicino a voi", " non lontano da voi", ""][variant % 3]}`;
+  const home =
+    !p.local || !city
+      ? ""
+      : normalizePlace(l.city) === normalizePlace(city)
+        ? ` e abito anche io a ${city}`
+        : ` e abito a ${city}${[" qui vicino a voi", " non lontano da voi", ""][variant % 3]}`;
   return variant % 3 === 1
     ? `${greeting} 🙂 mi chiamo ${name}${home}`
     : `${greeting}, mi chiamo ${name}${home} 🙂`;
@@ -276,6 +281,7 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
     "Vi ho trovati su Google e",
     "Cercando su Google ho trovato il vostro locale e",
   ][body];
+  const platform = context.contactReason.split("c'è ")[1] || "la pagina social";
   const unsure = context.contactReason.includes("non so")
     ? " e non so se ne avete già uno"
     : "";
@@ -288,6 +294,18 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
         `ho cercato il vostro sito ma non sono riuscito a trovarlo${unsure}`,
         `stavo cercando il vostro sito ma non ne ho trovato uno${unsure}`,
         `un vostro sito però non l'ho trovato${unsure}`,
+      ],
+      pitches: [
+        `Il sito lo costruiamo insieme come lo volete voi con i vostri colori e le vostre foto e dentro ci mettiamo ${theMenu}`,
+        `Potrei creare un sito completamente su misura per voi, dalla grafica ${toMenu}`,
+        `Potrei farvene uno tutto vostro e personalizzato sul vostro stile con ${theMenu} e i contatti`,
+      ],
+    },
+    social_only: {
+      observations: [
+        `come sito c'è ${platform} ma un sito vero e proprio non l'ho trovato`,
+        `ho visto che come sito avete ${platform} e basta`,
+        `il link del sito apre ${platform} e un sito tutto vostro non c'è`,
       ],
       pitches: [
         `Il sito lo costruiamo insieme come lo volete voi con i vostri colori e le vostre foto e dentro ci mettiamo ${theMenu}`,
@@ -389,7 +407,8 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
   ][body];
   let pitch = selected.pitches[body];
   if (qr && !/qr/i.test(pitch))
-    pitch += ", poi ai tavoli si può mettere un QR che apre direttamente il menu";
+    pitch +=
+      ", poi ai tavoli si può mettere un QR che apre direttamente il menu";
   const ctas = [
     "Vi interesserebbe?",
     "Potrebbe interessarvi?",
@@ -439,6 +458,8 @@ export function messageAllowed(text: string, lead: Lead, prefs: Preferences) {
     instagram_menu_only: /menu[\s\S]{0,120}(?:instagram|storie)/i,
     good_socials_bad_web:
       /(?:pagina|foto|social)[\s\S]{0,150}(?:curat|foto sono)[\s\S]{0,150}(?:sito|menu)/i,
+    social_only:
+      /sito[\s\S]{0,120}(?:facebook|instagram|tiktok|linktree|piattaforma esterna|pagina social)/i,
     events_no_website: /(?:serat|event)[\s\S]{0,170}(?:social|sito|spazio)/i,
   };
   if (!reasonPatterns[context.reasonKind].test(trimmed)) return false;

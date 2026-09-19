@@ -453,7 +453,7 @@ describe("provider contracts and conservative enrichment", () => {
     expect(result.model).toBe("fallback locale");
     expect(result.text).not.toContain(lead.name);
     expect(result.text).not.toMatch(/[0-9a-f]{8}-[0-9a-f-]{27,}/i);
-    expect(mocks.parse).toHaveBeenCalledTimes(2);
+    expect(mocks.parse).toHaveBeenCalledTimes(3);
   });
   it("rejects AI drafts that leak evidence labels or praise review counts", async () => {
     vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
@@ -467,7 +467,7 @@ describe("provider contracts and conservative enrichment", () => {
     const result = await generateOutreachMessage(lead, defaultPreferences, []);
     expect(result.model).toBe("fallback locale");
     expect(result.text).not.toMatch(/E2|recension|considerati|valere la pena/i);
-    expect(mocks.parse).toHaveBeenCalledTimes(2);
+    expect(mocks.parse).toHaveBeenCalledTimes(3);
   });
   it("regenerates the whole message when the first draft repeats the previous one", async () => {
     vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
@@ -527,7 +527,7 @@ describe("provider contracts and conservative enrichment", () => {
       [],
     );
     expect(result.model).toBe("fallback locale");
-    expect(mocks.parse).toHaveBeenCalledTimes(2);
+    expect(mocks.parse).toHaveBeenCalledTimes(3);
     mocks.parse.mockClear();
     await generateOutreachMessage(demoLeads()[0], defaultPreferences, []);
     const insufficient = await generateOutreachMessage(

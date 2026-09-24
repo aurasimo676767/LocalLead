@@ -8,6 +8,7 @@ import {
   ScanSearch,
   Users,
   Send,
+  Phone,
   Archive,
   Settings,
   Moon,
@@ -26,6 +27,7 @@ const nav = [
   ["/discover", "Trova lead", ScanSearch],
   ["/leads", "Lead", Users],
   ["/contacted", "Contattati", Send],
+  ["/numero", "Cerca numero", Phone],
   ["/archive", "Archivio", Archive],
   ["/settings", "Impostazioni", Settings],
 ] as const;

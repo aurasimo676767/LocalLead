@@ -144,3 +144,31 @@ export function whatsappCheckUrl(lead: Lead, message: string) {
   if (!number || isLandlinePhone(number) || !contactable(lead)) return "";
   return chatUrl(number, message);
 }
+/**
+ * Digits of a phone typed after a fixed "+39": pasted international forms
+ * ("+44…", "0039…", "39 333…") keep their own prefix.
+ */
+export function phoneQueryDigits(value: string) {
+  const raw = value.trim();
+  const digits = raw.replace(/\D/g, "");
+  if (raw.startsWith("+")) return digits;
+  if (digits.startsWith("00")) return digits.slice(2);
+  // Italian numbers are at most 11 digits: longer and starting 39 includes the prefix.
+  if (digits.startsWith("39") && digits.length >= 11) return digits;
+  return digits ? `39${digits}` : "";
+}
+/** Leads whose phone is this number, then those containing what was typed so far. */
+export function findByPhone(value: string, leads: Lead[]) {
+  const query = phoneQueryDigits(value);
+  if (query.length < 5) return [];
+  const typed = query.startsWith("39") ? query.slice(2) : query;
+  const digits = (l: Lead) => l.phone.replace(/\D/g, "");
+  const exact = leads.filter((l) => l.phone && digits(l) === query);
+  const partial =
+    typed.length >= 4
+      ? leads.filter(
+          (l) => l.phone && !exact.includes(l) && digits(l).includes(typed),
+        )
+      : [];
+  return [...exact, ...partial];
+}

@@ -13,13 +13,13 @@ import {
   Moon,
   Sun,
   ArrowUpRight,
-  Sprout,
   Plus,
   LogOut,
   Menu,
   X,
 } from "lucide-react";
 import { useWorkspace } from "./workspace";
+import { Logo } from "./logo";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 const nav = [
   ["/dashboard", "Dashboard", LayoutDashboard],
@@ -95,7 +95,7 @@ export function Shell({
       >
         <Link className="brand" href="/dashboard" onClick={closeMenu}>
           <span className="brand-mark">
-            <Sprout size={23} />
+            <Logo size={32} />
           </span>
           locallead<span className="brand-dot">.</span>
         </Link>
@@ -107,7 +107,6 @@ export function Shell({
         >
           <X />
         </button>
-        <p className="nav-caption">IL TUO WORKSPACE</p>
         <nav aria-label="Navigazione principale">
           {nav.map(([href, label, Icon]) => (
             <Link
@@ -129,24 +128,13 @@ export function Shell({
             >
               <Icon size={19} />
               {label}
-              {href === "/leads" && (
+              {href === "/leads" && leads.length > 0 && (
                 <span className="nav-count">{leads.length}</span>
               )}
             </Link>
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="small-card">
-            <span className="live-dot" /> Un contatto alla volta
-            <p>
-              Trova il motivo giusto.
-              <br />
-              Inizia una conversazione vera.
-            </p>
-            <Link href="/discover" onClick={closeMenu}>
-              Esplora le opportunità <ArrowUpRight size={15} />
-            </Link>
-          </div>
           <div className="profile">
             <span className="avatar">TU</span>
             <div>
@@ -181,8 +169,6 @@ export function Shell({
             >
               <Menu size={20} />
             </button>
-            <span>Workspace</span>
-            <span className="slash">/</span>
             <strong>
               {nav.find(([href]) => path.startsWith(href))?.[1] || "Lead"}
             </strong>
@@ -190,7 +176,7 @@ export function Shell({
           <div className="top-actions">
             <span className="mode-pill">
               <span className="live-dot" />
-              {config.demo ? "Demo mode" : "Spazio privato"}
+              {config.demo ? "Modalità demo" : "Connesso"}
             </span>
             <button
               className="icon-btn"

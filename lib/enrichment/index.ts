@@ -4,6 +4,14 @@ import { publicHtml } from "../providers/http";
 import { searchProvider } from "../providers/search";
 import { extractHtml, classifyWebsite, classifyMenu } from "./html";
 import {
+  auditWebsite,
+  browserAuditEnabled,
+  type BrowserAudit,
+} from "./browser";
+import { siteFindings, siteQuality } from "./audit";
+import { saveScreen } from "./screens";
+import { reviewWebsite } from "../ai";
+import {
   social,
   externalMenu,
   delivery,
@@ -12,7 +20,9 @@ import {
 } from "../utils";
 import { scoreLead } from "../scoring";
 import { platformPrefix } from "../messaging";
-const ANALYSIS_VERSION = "reachability-v5";
+// A new version re-reads sites analysed with an older method.
+const analysisVersion = () =>
+  browserAuditEnabled() ? "browser-v1" : "reachability-v5";
 function websitePlatform(url: string) {
   if (hostIs(url, "facebook.com"))
     return { label: "la pagina Facebook", field: "facebook_url" as const };
@@ -35,7 +45,7 @@ export async function enrichLead(input: Lead): Promise<Lead> {
   const hasCurrentWebsiteCheck = input.sources.some(
     (source) =>
       source.source_type === "website_analysis" &&
-      source.metadata_json.analysis_version === ANALYSIS_VERSION,
+      source.metadata_json.analysis_version === analysisVersion(),
   );
   const needsPlatformEvidence =
     !!input.website_url &&
@@ -64,9 +74,13 @@ export async function enrichLead(input: Lead): Promise<Lead> {
         "menu_ads",
         "website_unreachable",
         "website_check_failed",
+        "site_ads",
+        "site_issue",
+        "site_review",
       ].includes(e.kind),
   );
   l.analysis.features = null;
+  l.analysis.site_audit = null;
   l.analysis.outreach_context = undefined;
   l.analysis.contact_reason = undefined;
   l.analysis.events_relevant = false;
@@ -104,7 +118,23 @@ export async function enrichLead(input: Lead): Promise<Lead> {
     } else {
       l.website_status = "own_website";
       try {
-        const page = await publicHtml(l.website_url);
+        let page: { body: string; status: number; url: string } | null = null;
+        let browsed: BrowserAudit | null = null;
+        if (browserAuditEnabled())
+          try {
+            browsed = await auditWebsite(l.website_url);
+            page = {
+              body: browsed.html,
+              status: browsed.audit.status,
+              url: browsed.audit.final_url,
+            };
+          } catch (error) {
+            console.warn("[website analysis] browser failed", {
+              id: l.id,
+              error: error instanceof Error ? error.message : "Unknown error",
+            });
+          }
+        page ??= await publicHtml(l.website_url);
         if (
           /<title[^>]*>\s*(?:just a moment|access denied|attention required|verify you are human)/i.test(
             page.body,
@@ -128,33 +158,79 @@ export async function enrichLead(input: Lead): Promise<Lead> {
           throw new Error(
             `Il controllo automatico ha ricevuto HTTP ${f.status}; il sito va verificato nel browser`,
           );
+        } else if (browsed) {
+          const findings = siteFindings(browsed.audit);
+          l.website_quality = siteQuality(browsed.audit, findings);
+          for (const x of findings) add(x.kind, x.text, page.url, x.confidence);
+          if (l.website_quality === "poor")
+            add(
+              "weak_website",
+              `Controllo nel browser: ${[...findings]
+                .sort((a, b) => Number(b.severe) - Number(a.severe))
+                .slice(0, 3)
+                .map((x) => x.text.charAt(0).toLowerCase() + x.text.slice(1))
+                .join("; ")}`,
+              page.url,
+            );
+          if (l.website_quality === "good")
+            add(
+              "good_website",
+              "Homepage completa nel controllo con il browser: menu, versione da telefono e nessun problema misurato",
+              page.url,
+            );
+          for (const view of ["desktop", "mobile"] as const) {
+            const bytes = browsed[view];
+            if (bytes)
+              try {
+                await saveScreen(l.id, view, bytes);
+              } catch {
+                browsed.audit.screenshots[view] = false;
+              }
+          }
+          browsed.audit.review = await reviewWebsite(l, browsed, browsed.audit);
+          const review = browsed.audit.review;
+          if (review)
+            add(
+              "site_review",
+              `Valutazione AI degli screenshot: ${review.verdict}, ${review.score}/10`,
+              page.url,
+              0.6,
+            );
+          l.analysis.site_audit = browsed.audit;
         } else if (l.website_quality === "poor")
           add(
             "weak_website",
             `Homepage: ${f.word_count} parole, ${f.image_count} immagini, viewport ${f.viewport ? "presente" : "assente"}`,
             page.url,
           );
-        if (f.word_count >= 20 && f.word_count < 100)
-          add("sparse", `Homepage: ${f.word_count} parole leggibili`, page.url);
-        if (l.website_quality === "good")
-          add(
-            "good_website",
-            "Homepage completa nei controlli HTML: menu, contatti, immagini e viewport",
-            page.url,
-          );
-        if (!f.viewport)
-          add(
-            "html_viewport",
-            "Meta viewport mobile non rilevato; non è un test visivo responsive",
-            page.url,
-          );
-        if (!f.menu_links.length)
-          add(
-            "html_menu",
-            "Nessun link menu riconosciuto nella homepage; verificare altre pagine",
-            page.url,
-            0.7,
-          );
+        // HTML-only heuristics: the browser findings above replace them.
+        if (!browsed) {
+          if (f.word_count >= 20 && f.word_count < 100)
+            add(
+              "sparse",
+              `Homepage: ${f.word_count} parole leggibili`,
+              page.url,
+            );
+          if (l.website_quality === "good")
+            add(
+              "good_website",
+              "Homepage completa nei controlli HTML: menu, contatti, immagini e viewport",
+              page.url,
+            );
+          if (!f.viewport)
+            add(
+              "html_viewport",
+              "Meta viewport mobile non rilevato; non è un test visivo responsive",
+              page.url,
+            );
+          if (!f.menu_links.length)
+            add(
+              "html_menu",
+              "Nessun link menu riconosciuto nella homepage; verificare altre pagine",
+              page.url,
+              0.7,
+            );
+        }
         if (!l.menu_url) l.menu_url = f.menu_links[0] || "";
         if (!l.facebook_url)
           l.facebook_url =
@@ -197,7 +273,7 @@ export async function enrichLead(input: Lead): Promise<Lead> {
           metadata_json: {
             http_status: page.status,
             checked_at: now(),
-            analysis_version: ANALYSIS_VERSION,
+            analysis_version: analysisVersion(),
           },
           created_at: now(),
         });
@@ -227,15 +303,28 @@ export async function enrichLead(input: Lead): Promise<Lead> {
     !social(l.menu_url)
   ) {
     try {
-      const page = await publicHtml(l.menu_url);
-      const f = extractHtml(page.body, page.url, page.status);
-      if (f.ad_markers >= 3)
-        add(
-          "menu_ads",
-          `${f.ad_markers} elementi pubblicitari riconoscibili nel menu`,
-          page.url,
-          0.9,
-        );
+      if (browserAuditEnabled()) {
+        const { audit } = await auditWebsite(l.menu_url, {
+          screenshots: false,
+        });
+        if (audit.ads.slots > 0)
+          add(
+            "menu_ads",
+            `${audit.ads.slots} ${audit.ads.slots === 1 ? "spazio pubblicitario visibile" : "spazi pubblicitari visibili"} nel menu${audit.ads.networks.length ? ` (${audit.ads.networks.join(", ")})` : ""}`,
+            audit.final_url,
+            0.9,
+          );
+      } else {
+        const page = await publicHtml(l.menu_url);
+        const f = extractHtml(page.body, page.url, page.status);
+        if (f.ad_markers >= 3)
+          add(
+            "menu_ads",
+            `${f.ad_markers} elementi pubblicitari riconoscibili nel menu`,
+            page.url,
+            0.9,
+          );
+      }
     } catch {
       l.analysis.warnings.push(
         "Menu esterno non analizzabile: nessun giudizio sulla pubblicità",

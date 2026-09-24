@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 const config: NextConfig = {
   poweredByHeader: false,
-  serverExternalPackages: ["cheerio"],
+  serverExternalPackages: ["cheerio", "playwright", "playwright-core"],
   async headers() {
     return [
       {

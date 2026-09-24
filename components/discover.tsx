@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ScanSearch, MapPin, ArrowRight, Check } from "lucide-react";
 import { useWorkspace, useTask } from "./workspace";
+import { saveScanBatch } from "./scan-batch";
 import { PageHeading, Field, ErrorText, Score, Status } from "./ui";
 import { categories, type Lead } from "@/lib/model";
 import { fitsFilter } from "@/lib/scoring";
@@ -75,10 +76,12 @@ export function Discover() {
     });
   }
   const visible = results?.filter((r) => fitsFilter(r.lead, filter));
+  // Opening a result pins the arrows on the lead page to this search only.
+  const openFromScan = () =>
+    saveScanBatch(visible?.map((r) => r.lead.id) || []);
   return (
     <>
       <PageHeading
-        eyebrow="PARTI DAL TERRITORIO"
         title="Il prossimo buon lead."
         description="Scegli una zona. Trova le attività con un’opportunità concreta."
       />
@@ -240,7 +243,10 @@ export function Discover() {
             <div className="discovery-row" key={r.lead.id}>
               <Score value={r.lead.lead_score} />
               <div>
-                <Link href={`/leads/${r.lead.id}`}>
+                <Link
+                  href={`/leads/${r.lead.id}?scan=1`}
+                  onClick={openFromScan}
+                >
                   <strong>{r.lead.name}</strong>
                 </Link>
                 <p>{r.lead.main_problem}</p>
@@ -248,7 +254,8 @@ export function Discover() {
               <Status lead={r.lead} />
               <Link
                 className="button secondary small"
-                href={`/leads/${r.lead.id}`}
+                href={`/leads/${r.lead.id}?scan=1`}
+                onClick={openFromScan}
               >
                 Apri lead
               </Link>

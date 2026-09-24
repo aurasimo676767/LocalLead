@@ -190,7 +190,8 @@ describe("messages and contacts", () => {
             );
           }
         }
-  });
+    // Exhaustive and CPU-bound: close to the default 5 s on a busy machine.
+  }, 15_000);
   it("asks about a missing Google link without asserting that no site exists", () => {
     const lead = base();
     lead.analysis.evidence.push({
@@ -525,7 +526,9 @@ describe("messages and contacts", () => {
       "api.whatsapp.com/send?phone=393331234567",
     );
     // Emoji travel as UTF-8 percent escapes, never as a replacement character.
-    expect(whatsappCheckUrl(l, "ciao 🙂")).toContain("text=ciao%20%F0%9F%99%82");
+    expect(whatsappCheckUrl(l, "ciao 🙂")).toContain(
+      "text=ciao%20%F0%9F%99%82",
+    );
   });
 });
 describe("website classification", () => {

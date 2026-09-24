@@ -3,10 +3,11 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { publicConfig } from "@/lib/config";
 import { getLead } from "@/lib/supabase/repository";
 import { screenshotProvider } from "@/lib/providers/screenshot";
+import { readScreen } from "@/lib/enrichment/screens";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -16,6 +17,20 @@ export async function GET(
       data: { user },
     } = await db.auth.getUser();
     if (!user) return new NextResponse(null, { status: 401 });
+    const view = request.nextUrl.searchParams.get("view");
+    if (view === "desktop" || view === "mobile") {
+      // Saved by the browser check; the lead lookup runs under the user's RLS.
+      const l = await getLead(db, (await params).id);
+      const bytes = await readScreen(l.id, view);
+      return bytes
+        ? new NextResponse(new Uint8Array(bytes), {
+            headers: {
+              "Content-Type": "image/jpeg",
+              "Cache-Control": "private, max-age=86400",
+            },
+          })
+        : new NextResponse(null, { status: 404 });
+    }
     const { data: allowed, error } = await db.rpc("consume_rate", {
       p_bucket: "expensive",
     });

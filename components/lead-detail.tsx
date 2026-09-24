@@ -20,8 +20,10 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useWorkspace, useTask } from "./workspace";
-import { PageHeading, Score, Status, ErrorText, Field } from "./ui";
+import { useScanBatch } from "./scan-batch";
+import { Score, Status, ErrorText, Field } from "./ui";
 import { LeadForm } from "./lead-form";
+import { SiteAuditPanel } from "./site-audit";
 import { statuses, statusLabels, contactable, type Lead } from "@/lib/model";
 import { hotReasons, worthwhile } from "@/lib/scoring";
 import { buildOutreachContext, fallbackMessage } from "@/lib/messaging";
@@ -75,11 +77,11 @@ function UrlRow({
     </div>
   );
 }
-export function LeadDetail({ id }: { id: string }) {
+export function LeadDetail({ id, scan }: { id: string; scan?: boolean }) {
   const { leads } = useWorkspace();
   const lead = leads.find((l) => l.id === id);
   return lead ? (
-    <Detail key={id} lead={lead} />
+    <Detail key={id} lead={lead} scan={scan} />
   ) : (
     <div className="empty-state">
       <h2>Lead non trovato</h2>
@@ -87,8 +89,9 @@ export function LeadDetail({ id }: { id: string }) {
     </div>
   );
 }
-function Detail({ lead: l }: { lead: Lead }) {
+function Detail({ lead: l, scan }: { lead: Lead; scan?: boolean }) {
   const { command, notify, config, preferences, leads } = useWorkspace();
+  const batch = useScanBatch();
   const task = useTask();
   const [text, setText] = useState(
     () => l.messages.at(-1)?.text || fallbackMessage(l, preferences),
@@ -123,17 +126,28 @@ function Detail({ lead: l }: { lead: Lead }) {
     !!whatsappCheckUrl(l, contactDraft) &&
     !l.is_demo;
   const hasFb = !blocked && !!l.facebook_url && !l.is_demo;
-  const navigable = leads.filter(
-    (item) =>
-      !item.do_not_contact &&
-      !["archived", "bad_lead", "not_interested"].includes(item.status),
-  );
+  const open = (item: Lead) =>
+    !item.do_not_contact &&
+    !["archived", "bad_lead", "not_interested"].includes(item.status);
+  // Opened from a discovery search: step through that search's results, in
+  // their order, and nothing else. The lead list reorders as leads change, so
+  // the current lead keeps its place even after it is contacted or archived.
+  const scanned =
+    scan && batch?.includes(l.id)
+      ? batch.map((id) => leads.find((item) => item.id === id))
+      : undefined;
+  const navigable = scanned
+    ? scanned.filter(
+        (item): item is Lead => !!item && (item.id === l.id || open(item)),
+      )
+    : leads.filter(open);
   const position = navigable.findIndex((item) => item.id === l.id);
   const previous = position > 0 ? navigable[position - 1] : undefined;
   const next =
     position >= 0 && position < navigable.length - 1
       ? navigable[position + 1]
       : undefined;
+  const suffix = scanned ? "?scan=1" : "";
   async function saveDraft() {
     const trimmed = text.trim();
     if (trimmed && trimmed !== l.messages.at(-1)?.text)
@@ -147,11 +161,17 @@ function Detail({ lead: l }: { lead: Lead }) {
     <>
       <div className="detail-nav">
         <Link href="/leads" className="back-link">
-          <ArrowLeft size={15} /> Tutti i lead
+          <ArrowLeft size={15} /> <span>Tutti i lead</span>
         </Link>
         <div className="detail-nav-actions">
+          {position >= 0 && (
+            <span className="queue-position">
+              {position + 1} di {navigable.length}
+              {scanned && <small> in questa ricerca</small>}
+            </span>
+          )}
           <Link
-            href={previous ? `/leads/${previous.id}` : "#"}
+            href={previous ? `/leads/${previous.id}${suffix}` : "#"}
             className={`button secondary small${previous ? "" : " disabled-link"}`}
             aria-label="Locale precedente"
             aria-disabled={!previous}
@@ -159,10 +179,11 @@ function Detail({ lead: l }: { lead: Lead }) {
               if (!previous) event.preventDefault();
             }}
           >
-            <ChevronLeft size={15} /> Precedente
+            <ChevronLeft size={15} />{" "}
+            <span className="nav-label">Precedente</span>
           </Link>
           <Link
-            href={next ? `/leads/${next.id}` : "#"}
+            href={next ? `/leads/${next.id}${suffix}` : "#"}
             className={`button secondary small${next ? "" : " disabled-link"}`}
             aria-label="Locale successivo"
             aria-disabled={!next}
@@ -170,21 +191,30 @@ function Detail({ lead: l }: { lead: Lead }) {
               if (!next) event.preventDefault();
             }}
           >
-            Successivo <ChevronRight size={15} />
+            <span className="nav-label">Successivo</span>{" "}
+            <ChevronRight size={15} />
           </Link>
         </div>
       </div>
-      <PageHeading
-        eyebrow={`${l.category.toUpperCase()} · ${l.city.toUpperCase()}`}
-        title={l.name}
-        description={l.address || "Indirizzo da completare"}
-      >
-        <Status lead={l} />
+      <header className="lead-hero">
         <Score value={l.lead_score} large />
-        <button className="button secondary" onClick={() => setEdit(!edit)}>
-          <Pencil size={15} /> Modifica
-        </button>
-      </PageHeading>
+        <div>
+          <h1>{l.name}</h1>
+          <p>
+            {l.category} a {l.city}
+            {l.address ? `, ${l.address}` : ""}
+          </p>
+        </div>
+        <div className="heading-actions">
+          <Status lead={l} />
+          <button
+            className="button secondary small"
+            onClick={() => setEdit(!edit)}
+          >
+            <Pencil size={14} /> Modifica
+          </button>
+        </div>
+      </header>
       {edit && <LeadForm lead={l} onSaved={() => setEdit(false)} />}
       <ErrorText text={task.error} />
       {l.do_not_contact && (
@@ -202,10 +232,140 @@ function Detail({ lead: l }: { lead: Lead }) {
       )}
       <div className="detail-layout">
         <div className="detail-primary">
+          <section className="panel message-panel">
+            <div className="panel-title">
+              <h2>Messaggio</h2>
+              <span className="muted push-right">
+                {l.messages.at(-1)?.model ||
+                  (text
+                    ? config.ai
+                      ? "Bozza locale, premi Rigenera per usare l’AI"
+                      : "Bozza locale"
+                    : "Nessuna bozza")}
+              </span>
+            </div>
+            <p className="message-reason">
+              <b>Motivo:</b> {l.main_problem}
+            </p>
+            <textarea
+              aria-label="Messaggio suggerito"
+              maxLength={3000}
+              className="message-editor"
+              rows={7}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={
+                worthwhile(l)
+                  ? "Genera una prima bozza personalizzata…"
+                  : "Verifica un’opportunità concreta prima di generare un messaggio."
+              }
+            />
+            <div className="message-meta">
+              <span>
+                {text.length} caratteri{" "}
+                <span className="muted">(ideale 140–380)</span>
+              </span>
+              <div className="message-tools">
+                <button
+                  className="text-button"
+                  title="Crea una bozza personalizzata per questo lead"
+                  aria-label={text ? "Rigenera messaggio" : "Genera messaggio"}
+                  disabled={task.busy || !contactable(l) || !outreachReady}
+                  onClick={() =>
+                    void task.run(async () => {
+                      await saveDraft();
+                      const r = await command("message", undefined, l.id);
+                      setText(r.lead?.messages.at(-1)?.text || "");
+                    })
+                  }
+                >
+                  <RefreshCw size={14} />{" "}
+                  {text ? "Rigenera" : "Genera messaggio"}
+                </button>
+                <button
+                  className="text-button"
+                  disabled={!text.trim()}
+                  onClick={() => void task.run(copy)}
+                >
+                  <Copy size={14} /> Copia
+                </button>
+                <button
+                  className="text-button"
+                  disabled={!text.trim() || task.busy}
+                  onClick={() =>
+                    void task.run(async () => {
+                      await saveDraft();
+                      notify("Bozza salvata nella cronologia");
+                    })
+                  }
+                >
+                  Salva bozza
+                </button>
+              </div>
+            </div>
+            {!outreachReady && !blocked && (
+              <p className="muted">
+                Nessun motivo concreto verificato per contattare questo locale.
+                Le recensioni da sole non bastano per generare un messaggio.
+              </p>
+            )}
+            <div className="contact-actions">
+              <button
+                className="button whatsapp"
+                disabled={!canWa || task.busy}
+                onClick={() => setConfirm(true)}
+              >
+                <MessageCircle size={17} /> Apri WhatsApp
+              </button>
+              {l.whatsapp_confidence === "uncertain" && (
+                <button
+                  className="button secondary"
+                  disabled={!canCheckWa || task.busy}
+                  onClick={() => setConfirm(true)}
+                >
+                  <MessageCircle size={17} /> Verifica su WhatsApp
+                </button>
+              )}
+              <button
+                className="button secondary"
+                disabled={!hasFb || !text.trim() || task.busy}
+                onClick={() => {
+                  const win = window.open("about:blank", "_blank");
+                  if (win) win.opener = null;
+                  void task.run(async () => {
+                    try {
+                      await copy();
+                      await saveDraft();
+                      if (win) win.location.href = safeUrl(l.facebook_url);
+                      else
+                        notify(
+                          "Popup bloccato: usa il link Facebook nei contatti",
+                        );
+                    } catch (e) {
+                      win?.close();
+                      throw e;
+                    }
+                  });
+                }}
+              >
+                <Facebook size={16} /> Apri Facebook
+              </button>
+              <p className="microcopy">
+                <ShieldCheck size={14} /> Si apre la chat con il testo: l’invio
+                lo fai tu.
+              </p>
+            </div>
+            {l.whatsapp_confidence === "uncertain" && (
+              <p className="muted">
+                Numero da verificare: conferma la fonte pubblica prima di usare
+                WhatsApp.
+              </p>
+            )}
+          </section>
+          <SiteAuditPanel lead={l} />
           <section className="panel">
             <div className="panel-title">
-              <span className="section-number">01</span>
-              <h2>L’opportunità, in chiaro</h2>
+              <h2>Perché contattarlo</h2>
               <button
                 className="icon-btn push-right"
                 title="Analizza lead (cache 72 ore)"
@@ -222,11 +382,9 @@ function Detail({ lead: l }: { lead: Lead }) {
               </button>
             </div>
             <div className="analysis-highlight">
-              <span>PROBLEMA PRINCIPALE</span>
               <h3>{l.main_problem}</h3>
               <p>{l.opportunity}</p>
             </div>
-            <h4>Perché è un buon lead</h4>
             <ul className="reasons detailed">
               {hotReasons(l).map((r) => (
                 <li key={r.label}>
@@ -271,135 +429,6 @@ function Detail({ lead: l }: { lead: Lead }) {
           </section>
           <section className="panel">
             <div className="panel-title">
-              <span className="section-number">02</span>
-              <h2>Una conversazione possibile</h2>
-              <span className="tag push-right">Bozza editabile</span>
-            </div>
-            <p className="muted">
-              Rileggi, aggiungi la tua voce e scegli il canale.
-            </p>
-            <textarea
-              aria-label="Messaggio suggerito"
-              maxLength={3000}
-              className="message-editor"
-              rows={7}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder={
-                worthwhile(l)
-                  ? "Genera una prima bozza personalizzata…"
-                  : "Verifica un’opportunità concreta prima di generare un messaggio."
-              }
-            />
-            <div className="message-meta">
-              <span>{text.length} caratteri · ideale 140–380</span>
-              <span>
-                {l.messages.at(-1)?.model ||
-                  (text
-                    ? config.ai
-                      ? "Bozza locale · premi Rigenera per usare l’AI"
-                      : "Bozza locale"
-                    : "Nessuna bozza")}
-              </span>
-            </div>
-            <div className="button-row">
-              <button
-                className="button secondary"
-                title="Crea una bozza personalizzata per questo lead"
-                aria-label={text ? "Rigenera messaggio" : "Genera messaggio"}
-                disabled={task.busy || !contactable(l) || !outreachReady}
-                onClick={() =>
-                  void task.run(async () => {
-                    await saveDraft();
-                    const r = await command("message", undefined, l.id);
-                    setText(r.lead?.messages.at(-1)?.text || "");
-                  })
-                }
-              >
-                <RefreshCw size={15} /> {text ? "Rigenera" : "Genera messaggio"}
-              </button>
-              <button
-                className="button secondary"
-                disabled={!text.trim() || task.busy}
-                onClick={() =>
-                  void task.run(async () => {
-                    await saveDraft();
-                    notify("Bozza salvata nella cronologia");
-                  })
-                }
-              >
-                Salva bozza
-              </button>
-              <button
-                className="button secondary"
-                disabled={!text.trim()}
-                onClick={() => void task.run(copy)}
-              >
-                <Copy size={15} /> Copia messaggio
-              </button>
-            </div>
-            {!outreachReady && !blocked && (
-              <p className="muted">
-                Nessun motivo concreto verificato per contattare questo locale.
-                Le recensioni da sole non bastano per generare un messaggio.
-              </p>
-            )}
-            <div className="contact-actions">
-              <button
-                className="button"
-                disabled={!canWa || task.busy}
-                onClick={() => setConfirm(true)}
-              >
-                <MessageCircle size={17} /> Apri WhatsApp
-              </button>
-              {l.whatsapp_confidence === "uncertain" && (
-                <button
-                  className="button secondary"
-                  disabled={!canCheckWa || task.busy}
-                  onClick={() => setConfirm(true)}
-                >
-                  <MessageCircle size={17} /> Verifica su WhatsApp
-                </button>
-              )}
-              <button
-                className="button secondary"
-                disabled={!hasFb || !text.trim() || task.busy}
-                onClick={() => {
-                  const win = window.open("about:blank", "_blank");
-                  if (win) win.opener = null;
-                  void task.run(async () => {
-                    try {
-                      await copy();
-                      await saveDraft();
-                      if (win) win.location.href = safeUrl(l.facebook_url);
-                      else
-                        notify(
-                          "Popup bloccato: usa il link Facebook nella presenza online",
-                        );
-                    } catch (e) {
-                      win?.close();
-                      throw e;
-                    }
-                  });
-                }}
-              >
-                <Facebook size={16} /> Apri Facebook
-              </button>
-            </div>
-            {l.whatsapp_confidence === "uncertain" && (
-              <p className="muted">
-                Numero da verificare: conferma la fonte pubblica prima di usare
-                WhatsApp.
-              </p>
-            )}
-            <p className="microcopy">
-              <ShieldCheck size={14} /> L’app apre il servizio. Controlli il
-              messaggio e premi tu Invio.
-            </p>
-          </section>
-          <section className="panel">
-            <div className="panel-title">
-              <span className="section-number">03</span>
               <h2>Fonti ed evidenze</h2>
             </div>
             {!l.analysis.evidence.length && (
@@ -478,6 +507,7 @@ function Detail({ lead: l }: { lead: Lead }) {
               </details>
             )}
             {config.screenshot === "ScreenshotOne" &&
+              !l.analysis.site_audit &&
               l.website_url &&
               !l.is_demo && (
                 <>
@@ -513,68 +543,7 @@ function Detail({ lead: l }: { lead: Lead }) {
         </div>
         <aside className="detail-aside">
           <section className="panel">
-            <h2>Presenza online</h2>
-            <UrlRow
-              label="Sito"
-              url={l.website_url}
-              detail={l.website_status}
-              demo={l.is_demo}
-            />
-            <div className="presence-row">
-              <span>Qualità</span>
-              <strong>{labels[l.website_quality]}</strong>
-            </div>
-            <UrlRow label="Facebook" url={l.facebook_url} demo={l.is_demo} />
-            <UrlRow label="Instagram" url={l.instagram_url} demo={l.is_demo} />
-            <UrlRow
-              label="Menu"
-              url={l.menu_url}
-              detail={l.menu_status}
-              demo={l.is_demo}
-            />
-            <UrlRow label="Google Maps" url={l.maps_url} demo={l.is_demo} />
-            <div className="presence-row">
-              <span>Telefono</span>
-              <strong>{l.phone || "Non disponibile"}</strong>
-            </div>
-            <div className="presence-row">
-              <span>WhatsApp</span>
-              <strong>{labels[l.whatsapp_confidence]}</strong>
-            </div>
-            <div className="presence-row">
-              <span>Eventi</span>
-              <strong>
-                {l.analysis.events_relevant
-                  ? "Segnali presenti"
-                  : "Non verificati"}
-              </strong>
-            </div>
-            <div className="presence-row">
-              <span>Recensioni</span>
-              <strong>
-                {l.rating ?? "—"} · {l.reviews_count}
-              </strong>
-            </div>
-            {l.opening_hours.length > 0 && (
-              <details>
-                <summary>Orari</summary>
-                {l.opening_hours.map((h) => (
-                  <p key={h}>{h}</p>
-                ))}
-              </details>
-            )}
-            <p className="muted">
-              {l.postal_code && `CAP ${l.postal_code} · `}
-              {l.analysis.analyzed_at
-                ? `Analizzato: ${new Date(l.analysis.analyzed_at).toLocaleString("it-IT")}`
-                : "Non ancora analizzato"}
-            </p>
-            {l.sources.some((s) => s.source_type === "google_places") && (
-              <p className="attribution">Dati attività: Google Maps</p>
-            )}
-          </section>
-          <section className="panel">
-            <h2>Il prossimo passo</h2>
+            <h2>Esito del contatto</h2>
             <Field label="Canale usato">
               <select
                 value={channel}
@@ -675,6 +644,67 @@ function Detail({ lead: l }: { lead: Lead }) {
                 <strong>Note attività</strong>
                 <p className="pre-wrap">{l.notes}</p>
               </div>
+            )}
+          </section>
+          <section className="panel">
+            <h2>Contatti e presenza online</h2>
+            <UrlRow
+              label="Sito"
+              url={l.website_url}
+              detail={l.website_status}
+              demo={l.is_demo}
+            />
+            <div className="presence-row">
+              <span>Qualità</span>
+              <strong>{labels[l.website_quality]}</strong>
+            </div>
+            <UrlRow label="Facebook" url={l.facebook_url} demo={l.is_demo} />
+            <UrlRow label="Instagram" url={l.instagram_url} demo={l.is_demo} />
+            <UrlRow
+              label="Menu"
+              url={l.menu_url}
+              detail={l.menu_status}
+              demo={l.is_demo}
+            />
+            <UrlRow label="Google Maps" url={l.maps_url} demo={l.is_demo} />
+            <div className="presence-row">
+              <span>Telefono</span>
+              <strong>{l.phone || "Non disponibile"}</strong>
+            </div>
+            <div className="presence-row">
+              <span>WhatsApp</span>
+              <strong>{labels[l.whatsapp_confidence]}</strong>
+            </div>
+            <div className="presence-row">
+              <span>Eventi</span>
+              <strong>
+                {l.analysis.events_relevant
+                  ? "Segnali presenti"
+                  : "Non verificati"}
+              </strong>
+            </div>
+            <div className="presence-row">
+              <span>Recensioni</span>
+              <strong>
+                {l.rating ?? "—"} · {l.reviews_count}
+              </strong>
+            </div>
+            {l.opening_hours.length > 0 && (
+              <details>
+                <summary>Orari</summary>
+                {l.opening_hours.map((h) => (
+                  <p key={h}>{h}</p>
+                ))}
+              </details>
+            )}
+            <p className="muted">
+              {l.postal_code && `CAP ${l.postal_code} · `}
+              {l.analysis.analyzed_at
+                ? `Analizzato: ${new Date(l.analysis.analyzed_at).toLocaleString("it-IT")}`
+                : "Non ancora analizzato"}
+            </p>
+            {l.sources.some((s) => s.source_type === "google_places") && (
+              <p className="attribution">Dati attività: Google Maps</p>
             )}
           </section>
           <section className="panel">

@@ -128,10 +128,59 @@ export type HtmlFeatures = {
   ad_markers: number;
   final_url: string;
 };
+/** What a real browser saw on the homepage, desktop and phone. */
+export type SiteAudit = {
+  checked_at: string;
+  final_url: string;
+  status: number;
+  load_ms: number | null;
+  requests: number;
+  https: boolean;
+  title: string;
+  description: string;
+  word_count: number;
+  image_count: number;
+  broken_images: number;
+  copyright_year: number | null;
+  technologies: string[];
+  ads: { slots: number; networks: string[] };
+  popups: number;
+  cookie_banner: boolean;
+  /** Null when the phone visit was blocked or failed: not measured. */
+  mobile: {
+    viewport: boolean;
+    page_width: number;
+    screen_width: number;
+    small_text_pct: number;
+  } | null;
+  menu: { links: string[]; pdf_only: boolean; on_page: boolean };
+  booking_links: string[];
+  ordering_links: string[];
+  whatsapp_link: boolean;
+  tel_link: boolean;
+  email_link: boolean;
+  map_embed: boolean;
+  social_links: string[];
+  parked: boolean;
+  under_construction: boolean;
+  console_errors: number;
+  screenshots: { desktop: boolean; mobile: boolean };
+  review?: SiteReview | null;
+};
+/** An AI opinion of the screenshots: shown to the user, never scored. */
+export type SiteReview = {
+  verdict: "moderno" | "nella media" | "datato" | "scadente";
+  score: number;
+  summary: string;
+  problems: string[];
+  strengths: string[];
+  model: string;
+};
 export type Analysis = {
   evidence: Evidence[];
   reasons: ScoreReason[];
   features: HtmlFeatures | null;
+  site_audit?: SiteAudit | null;
   events_relevant: boolean;
   permanently_closed: boolean;
   analyzed_at: string | null;

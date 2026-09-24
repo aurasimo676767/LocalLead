@@ -4,7 +4,6 @@ import Link from "next/link";
 import {
   Search,
   Upload,
-  Plus,
   ScanSearch,
   Trash2,
   SlidersHorizontal,
@@ -126,9 +125,6 @@ export function LeadList({
           <>
             <Link className="button secondary" href="/leads/import">
               <Upload size={16} /> Importa CSV
-            </Link>
-            <Link className="button" href="/leads/new">
-              <Plus size={16} /> Nuovo lead
             </Link>
           </>
         )}

@@ -34,6 +34,9 @@ importers:
       papaparse:
         specifier: latest
         version: 5.7.0
+      playwright:
+        specifier: 1.63.0
+        version: 1.63.0
       react:
         specifier: latest
         version: 19.3.0

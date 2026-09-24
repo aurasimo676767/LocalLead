@@ -1,7 +1,6 @@
 "use client";
 import Link from "next/link";
 import {
-  ArrowUpRight,
   MapPin,
   Globe,
   MessageCircle,
@@ -55,66 +54,47 @@ export function PageHeading({
     </div>
   );
 }
-export function LeadCard({ lead }: { lead: Lead }) {
+export function LeadRow({ lead }: { lead: Lead }) {
   return (
-    <article className="lead-card">
-      <div className="card-top">
-        <span className="category-icon">
-          {lead.category === "Pizzeria"
-            ? "P"
-            : lead.category === "Cocktail bar"
-              ? "V"
-              : lead.name[0]}
-        </span>
-        <Status lead={lead} />
-      </div>
-      <div className="card-title">
-        <div>
-          <Link href={`/leads/${lead.id}`}>
-            <h3>{lead.name}</h3>
-          </Link>
-          <p>
-            {lead.category} <span>·</span> {lead.city}
-          </p>
-        </div>
-        <Score value={lead.lead_score} />
-      </div>
-      <div className="problem">
-        <span>OPPORTUNITÀ</span>
-        <p>{lead.opportunity}</p>
-      </div>
-      <ul className="reasons">
-        {hotReasons(lead).map((r) => (
-          <li key={r.label}>
-            <span className="reason-dot" />
-            {r.label}
-          </li>
-        ))}
-      </ul>
-      <div className="card-footer">
-        <div className="channels">
-          {lead.facebook_url && (
-            <span title="Facebook">
-              <Facebook size={15} />
-            </span>
-          )}
-          {["confirmed_business", "likely_business"].includes(
-            lead.whatsapp_confidence,
-          ) && (
-            <span title="WhatsApp business">
-              <MessageCircle size={15} />
-            </span>
-          )}
-          {lead.website_url && (
-            <span title="Sito web">
-              <Globe size={15} />
-            </span>
-          )}
-        </div>
+    <article className="lead-row">
+      <Score value={lead.lead_score} />
+      <div className="lead-row-main">
         <Link href={`/leads/${lead.id}`}>
-          Apri lead <ArrowUpRight size={16} />
+          <h3>{lead.name}</h3>
         </Link>
+        <p>
+          {lead.category}, {lead.city}
+        </p>
       </div>
+      <ul className="lead-row-reasons">
+        {hotReasons(lead)
+          .slice(0, 2)
+          .map((r) => (
+            <li key={r.label}>{r.label}</li>
+          ))}
+      </ul>
+      <div className="channels">
+        {lead.facebook_url && (
+          <span title="Facebook">
+            <Facebook size={15} />
+          </span>
+        )}
+        {["confirmed_business", "likely_business"].includes(
+          lead.whatsapp_confidence,
+        ) && (
+          <span title="WhatsApp business">
+            <MessageCircle size={15} />
+          </span>
+        )}
+        {lead.website_url && (
+          <span title="Sito web">
+            <Globe size={15} />
+          </span>
+        )}
+      </div>
+      <Link className="button secondary small" href={`/leads/${lead.id}`}>
+        Apri
+      </Link>
     </article>
   );
 }
@@ -124,10 +104,10 @@ export function LeadTable({ leads }: { leads: Lead[] }) {
       <table>
         <thead>
           <tr>
-            <th>ATTIVITÀ</th>
-            <th>SCORE</th>
-            <th>OPPORTUNITÀ</th>
-            <th>STATO</th>
+            <th>Attività</th>
+            <th>Score</th>
+            <th>Opportunità</th>
+            <th>Stato</th>
             <th />
           </tr>
         </thead>

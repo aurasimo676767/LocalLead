@@ -27,6 +27,7 @@ export function scoreLead(lead: Lead): Lead {
   if (["poor", "broken"].includes(lead.website_quality))
     add("weak_website", "Sito migliorabile: criticità rilevate", 25);
   add("menu_ads", "Elementi pubblicitari nel menu", 15);
+  add("site_ads", "Pubblicità sul sito", 15);
   add("facebook_active", "Pagina Facebook attiva verificata", 10);
   if (
     ["confirmed_business", "likely_business"].includes(lead.whatsapp_confidence)

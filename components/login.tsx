@@ -2,7 +2,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Sprout, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { Logo } from "./logo";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { Field, ErrorText } from "./ui";
 export function Login({ demo }: { demo: boolean }) {
@@ -18,7 +19,7 @@ export function Login({ demo }: { demo: boolean }) {
       <div className="login-story">
         <Link className="brand" href="/dashboard">
           <span className="brand-mark">
-            <Sprout size={24} />
+            <Logo size={32} />
           </span>
           locallead.
         </Link>

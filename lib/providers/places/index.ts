@@ -1,7 +1,12 @@
 import "server-only";
 import { demoLeads } from "../../demo";
 import { newLead, now, uid, type Lead } from "../../model";
-import { dedupKeys, isLandlinePhone, normalizePhone, safeUrl } from "../../utils";
+import {
+  dedupKeys,
+  isLandlinePhone,
+  normalizePhone,
+  safeUrl,
+} from "../../utils";
 import { providerJson } from "../http";
 export type SearchInput = {
   city: string;
@@ -31,6 +36,10 @@ const isKnown = (lead: Lead, known?: Set<string>) =>
 export interface LocalBusinessProvider {
   searchBusinesses(input: SearchInput): Promise<Lead[]>;
   getBusinessDetails(placeId: string): Promise<Lead>;
+  /** Centre of an Italian town, for the sender's own city. */
+  locateCity(
+    city: string,
+  ): Promise<{ lat: number; lng: number; label: string } | null>;
 }
 type Place = {
   id: string;
@@ -211,6 +220,42 @@ export class GooglePlacesProvider implements LocalBusinessProvider {
     )) as Place;
     return this.map(p, "Altro food", "");
   }
+  async locateCity(city: string) {
+    const json = (await providerJson(
+      "https://places.googleapis.com/v1/places:searchText",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": process.env.GOOGLE_PLACES_API_KEY!,
+          "X-Goog-FieldMask":
+            "places.location,places.formattedAddress,places.types",
+        },
+        body: JSON.stringify({
+          textQuery: `${city}, Italia`,
+          languageCode: "it",
+          regionCode: "IT",
+          pageSize: 3,
+        }),
+      },
+    )) as {
+      places?: Pick<Place, "location" | "formattedAddress" | "types">[];
+    };
+    // A bare name also matches businesses (Vittoria Assicurazioni in
+    // Pescara): only a town counts. Small towns are typed as comuni.
+    const place = json?.places?.find((p) =>
+      p.types?.some((t) =>
+        ["locality", "administrative_area_level_3", "postal_town"].includes(t),
+      ),
+    );
+    return place?.location
+      ? {
+          lat: place.location.latitude,
+          lng: place.location.longitude,
+          label: (place.formattedAddress || "").slice(0, 120),
+        }
+      : null;
+  }
 }
 export class DemoPlacesProvider implements LocalBusinessProvider {
   async searchBusinesses(input: SearchInput) {
@@ -226,6 +271,9 @@ export class DemoPlacesProvider implements LocalBusinessProvider {
     const l = demoLeads().find((l) => l.place_id === id);
     if (!l) throw new Error("Lead demo non trovato");
     return l;
+  }
+  async locateCity() {
+    return null;
   }
 }
 export const placesProvider = (): LocalBusinessProvider =>

@@ -244,18 +244,58 @@ const productCategories = [
 ];
 const normalizePlace = (value: string) =>
   value.normalize("NFKD").replace(/\p{M}/gu, "").toLocaleLowerCase("it").trim();
-// First name only, plus where the sender lives when the "local" preference is on.
+// Venues within this distance of the sender's city count as "della zona".
+export const LOCAL_KM = 40;
+const km = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+  const rad = Math.PI / 180;
+  const a =
+    Math.sin(((lat2 - lat1) * rad) / 2) ** 2 +
+    Math.cos(lat1 * rad) *
+      Math.cos(lat2 * rad) *
+      Math.sin(((lng2 - lng1) * rad) / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(a));
+};
+/**
+ * How close the venue is to where the sender lives. Without both positions a
+ * different city is "far": closeness is never claimed without evidence.
+ */
+export function senderReach(
+  l: Lead,
+  p: Preferences,
+): { reach: "same" | "near" | "far"; km: number | null } {
+  const city = p.sender_city.trim();
+  if (city && normalizePlace(l.city) === normalizePlace(city))
+    return { reach: "same", km: 0 };
+  const located =
+    !!city && normalizePlace(p.sender_place) === normalizePlace(city);
+  if (
+    located &&
+    p.sender_lat !== null &&
+    p.sender_lng !== null &&
+    l.latitude !== null &&
+    l.longitude !== null
+  ) {
+    const d = Math.round(
+      km(p.sender_lat, p.sender_lng, l.latitude, l.longitude),
+    );
+    return { reach: d <= LOCAL_KM ? "near" : "far", km: d };
+  }
+  return { reach: "far", km: null };
+}
+/** "Della zona" and "qui vicino" only with the preference on and a nearby venue. */
+export const localClaims = (l: Lead, p: Preferences) =>
+  p.local && !!p.sender_city.trim() && senderReach(l, p).reach !== "far";
+// First name only, plus where the sender lives when the venue is nearby.
 export function senderIntro(l: Lead, p: Preferences, variant = 0) {
   const greeting = p.tone === "molto casual" ? "ciao" : "Ciao";
   const name = p.sender_name.trim();
   const city = p.sender_city.trim();
   if (!name) return `${greeting} 🙂`;
-  const home =
-    !p.local || !city
-      ? ""
-      : normalizePlace(l.city) === normalizePlace(city)
-        ? ` e abito anche io a ${city}`
-        : ` e abito a ${city}${[" qui vicino a voi", " non lontano da voi", ""][variant % 3]}`;
+  const home = !localClaims(l, p)
+    ? ""
+    : senderReach(l, p).reach === "same"
+      ? ` e abito anche io a ${city}`
+      : ` e abito a ${city}${[" qui vicino a voi", " non lontano da voi", ""][variant % 3]}`;
   return [
     `${greeting}, mi chiamo ${name}${home} 🙂`,
     `${greeting} 🙂 mi chiamo ${name}${home}`,
@@ -279,7 +319,7 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
       : "menu";
   const theMenu = menu === "prodotti" ? "i prodotti" : `il ${menu}`;
   const toMenu = menu === "prodotti" ? "ai prodotti" : `al ${menu}`;
-  const local = p.local ? " della zona" : "";
+  const local = localClaims(l, p) ? " della zona" : "";
   const platform = context.contactReason.split("c'è ")[1] || "la pagina social";
   const unsure = context.contactReason.includes("non so")
     ? " e non so se ne avete già uno"
@@ -621,8 +661,13 @@ export function messageProblems(
   );
   fail(!facts.qr && /\bqr\b/i.test(text), "Non citare il QR");
   fail(
-    !prefs.local && /della zona|abito|qui vicino|non lontano/i.test(text),
-    "Non dire dove abiti o che sei della zona",
+    !localClaims(lead, prefs) &&
+      /della zona|in zona|abito|qui vicino|vicino a voi|non lontano|da queste parti/i.test(
+        text,
+      ),
+    prefs.local
+      ? "Il locale è lontano da dove abiti: non dire dove abiti, che sei vicino o della zona"
+      : "Non dire dove abiti o che sei della zona",
   );
   fail(
     !facts.unavailable &&

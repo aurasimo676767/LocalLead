@@ -59,6 +59,54 @@ describe("provider contracts and conservative enrichment", () => {
       mocks.providerJson.mock.calls[0][1].headers["X-Goog-FieldMask"],
     ).toContain("places.websiteUri");
   });
+  it("locates the sender town, skipping businesses with the same name", async () => {
+    mocks.providerJson.mockResolvedValue({
+      places: [
+        {
+          formattedAddress: "Via del Santuario, 65125 Pescara PE",
+          location: { latitude: 42.47, longitude: 14.19 },
+          types: ["insurance_agency", "point_of_interest"],
+        },
+        {
+          formattedAddress: "97019 Vittoria RG",
+          location: { latitude: 36.955, longitude: 14.529 },
+          types: ["locality", "political"],
+        },
+      ],
+    });
+    expect(await new GooglePlacesProvider().locateCity("Vittoria")).toEqual({
+      lat: 36.955,
+      lng: 14.529,
+      label: "97019 Vittoria RG",
+    });
+    expect(JSON.parse(mocks.providerJson.mock.calls[0][1].body).textQuery).toBe(
+      "Vittoria, Italia",
+    );
+  });
+  it("locates the sender town, skipping businesses with the same name", async () => {
+    mocks.providerJson.mockResolvedValue({
+      places: [
+        {
+          formattedAddress: "Via del Santuario, 65125 Pescara PE",
+          location: { latitude: 42.47, longitude: 14.19 },
+          types: ["insurance_agency", "point_of_interest"],
+        },
+        {
+          formattedAddress: "97019 Vittoria RG",
+          location: { latitude: 36.955, longitude: 14.529 },
+          types: ["locality", "political"],
+        },
+      ],
+    });
+    expect(await new GooglePlacesProvider().locateCity("Vittoria")).toEqual({
+      lat: 36.955,
+      lng: 14.529,
+      label: "97019 Vittoria RG",
+    });
+    expect(JSON.parse(mocks.providerJson.mock.calls[0][1].body).textQuery).toBe(
+      "Vittoria, Italia",
+    );
+  });
   it("paginates and deduplicates repeated place IDs", async () => {
     mocks.providerJson
       .mockResolvedValueOnce({

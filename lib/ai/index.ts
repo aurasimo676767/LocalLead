@@ -12,6 +12,7 @@ import {
 import {
   buildOutreachContext,
   fallbackMessage,
+  senderReach,
   similarity,
 } from "../messaging";
 import {
@@ -252,6 +253,7 @@ export async function generateOutreachMessage(
             attempt,
             context,
             !!previousMessage,
+            senderReach(lead, prefs),
           ),
           store: false,
           max_output_tokens: 1600,

@@ -12,7 +12,13 @@ import {
   saveLead,
 } from "@/lib/supabase/repository";
 import { inputSchema, discoverySchema } from "@/lib/validation";
-import { newLead, now, uid, preferencesSchema } from "@/lib/model";
+import {
+  newLead,
+  now,
+  uid,
+  preferencesSchema,
+  type Preferences,
+} from "@/lib/model";
 import { manualSources, patchLead } from "@/lib/lead-actions";
 import { placesProvider } from "@/lib/providers/places";
 import { enrichLead } from "@/lib/enrichment";
@@ -48,6 +54,41 @@ async function session(bucket: string) {
     throw new HttpError("Troppe richieste: riprova tra un minuto", 429);
   return { db, user };
 }
+type Db = Awaited<ReturnType<typeof supabaseServer>>;
+/**
+ * Finds where the sender's city is once per city, so messages only say
+ * "della zona" to nearby venues. A failed lookup is retried next time.
+ */
+async function locateSender(db: Db, userId: string, prefs: Preferences) {
+  const city = prefs.sender_city.trim();
+  if (prefs.sender_place === city) return prefs;
+  let next: Preferences = {
+    ...prefs,
+    sender_place: city,
+    sender_lat: null,
+    sender_lng: null,
+    sender_label: "",
+  };
+  if (city)
+    try {
+      const found = await placesProvider().locateCity(city);
+      if (found)
+        next = {
+          ...next,
+          sender_lat: found.lat,
+          sender_lng: found.lng,
+          sender_label: found.label,
+        };
+    } catch {
+      console.warn("[settings] sender city lookup failed");
+      return prefs;
+    }
+  const { error } = await db
+    .from("profiles")
+    .update({ preferences: next })
+    .eq("id", userId);
+  return error ? prefs : next;
+}
 function failure(error: unknown) {
   console.warn("[errors] workspace", {
     type: error instanceof Error ? error.constructor.name : "unknown",
@@ -76,7 +117,13 @@ function failure(error: unknown) {
 export async function GET() {
   try {
     const { db, user } = await session("read");
-    return NextResponse.json(await getWorkspace(db, user.id), {
+    const workspace = await getWorkspace(db, user.id);
+    workspace.preferences = await locateSender(
+      db,
+      user.id,
+      workspace.preferences,
+    );
+    return NextResponse.json(workspace, {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (e) {
@@ -117,7 +164,25 @@ export async function POST(req: NextRequest) {
         : "write",
     );
     if (body.action === "settings") {
-      const prefs = preferencesSchema.parse(body.data);
+      // Coordinates always come from the lookup, never from the client.
+      const parsed = preferencesSchema.parse(body.data);
+      const current = await getPreferences(db, user.id);
+      const prefs =
+        parsed.sender_city.trim() === current.sender_place
+          ? {
+              ...parsed,
+              sender_place: current.sender_place,
+              sender_lat: current.sender_lat,
+              sender_lng: current.sender_lng,
+              sender_label: current.sender_label,
+            }
+          : await locateSender(db, user.id, {
+              ...parsed,
+              sender_place: "",
+              sender_lat: null,
+              sender_lng: null,
+              sender_label: "",
+            });
       const { error } = await db
         .from("profiles")
         .update({ preferences: prefs })
@@ -222,7 +287,11 @@ export async function POST(req: NextRequest) {
       }
     }
     if (body.action === "message") {
-      const preferences = await getPreferences(db, user.id);
+      const preferences = await locateSender(
+        db,
+        user.id,
+        await getPreferences(db, user.id),
+      );
       const context = buildOutreachContext(lead, preferences);
       lead.analysis.outreach_context = context.status;
       lead.analysis.contact_reason = context.contactReason;

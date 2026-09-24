@@ -241,6 +241,12 @@ export const preferencesSchema = z.object({
   // Only the first name: the surname can come later in the conversation.
   sender_name: z.string().trim().max(40).default("Simone"),
   sender_city: z.string().trim().max(60).default("Vittoria"),
+  // Where sender_city is, found once through Places: "della zona" and
+  // "qui vicino" are only written for venues within LOCAL_KM of it.
+  sender_place: z.string().trim().max(60).default(""),
+  sender_lat: z.number().min(-90).max(90).nullable().default(null),
+  sender_lng: z.number().min(-180).max(180).nullable().default(null),
+  sender_label: z.string().max(120).default(""),
 });
 export type Preferences = z.infer<typeof preferencesSchema>;
 export const defaultPreferences = preferencesSchema.parse({});

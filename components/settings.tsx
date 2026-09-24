@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useWorkspace, useTask } from "./workspace";
 import { PageHeading, Field, ErrorText } from "./ui";
 import { type Preferences } from "@/lib/model";
+import { LOCAL_KM } from "@/lib/messaging";
 import { Download, Check } from "lucide-react";
 export function Settings() {
   const { config, preferences, command, notify, leads } = useWorkspace();
@@ -22,15 +23,27 @@ export function Settings() {
               value={prefs.sender_name}
               maxLength={40}
               placeholder="Solo il nome, es. Simone"
-              onChange={(e) => setPrefs({ ...prefs, sender_name: e.target.value })}
+              onChange={(e) =>
+                setPrefs({ ...prefs, sender_name: e.target.value })
+              }
             />
           </Field>
-          <Field label="Dove abiti">
+          <Field
+            label="Dove abiti"
+            hint={
+              preferences.sender_lat !== null &&
+              preferences.sender_place === prefs.sender_city.trim()
+                ? `Trovata: ${preferences.sender_label || prefs.sender_city}. «Della zona» solo per i locali entro ${LOCAL_KM} km. Se la città è sbagliata aggiungi la provincia, es. «Vittoria RG».`
+                : "Salva per trovare la posizione. Senza posizione «della zona» vale solo per i locali della tua città."
+            }
+          >
             <input
               value={prefs.sender_city}
               maxLength={60}
               placeholder="es. Vittoria"
-              onChange={(e) => setPrefs({ ...prefs, sender_city: e.target.value })}
+              onChange={(e) =>
+                setPrefs({ ...prefs, sender_city: e.target.value })
+              }
             />
           </Field>
           <Field label="Tono">
@@ -68,7 +81,7 @@ export function Settings() {
               [
                 "local",
                 "Di’ che abiti in zona",
-                "“Abito a …” e “siti per locali della zona”.",
+                `“Abito a …” e “siti per locali della zona”, solo per i locali entro ${LOCAL_KM} km da te.`,
               ],
               [
                 "free_demo",

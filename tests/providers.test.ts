@@ -468,7 +468,7 @@ describe("provider contracts and conservative enrichment", () => {
     expect(request.input).toHaveLength(1);
     expect(request.input[0].role).toBe("user");
     expect(request.instructions).not.toContain("DEVI iniziare");
-    expect(request.instructions).toContain("Non inserire mai nomi di attività");
+    expect(request.instructions).toContain("Non scrivere mai il nome del locale");
     expect(request.instructions).toContain("Chiudi usando esattamente");
     const payload = JSON.parse(request.input[0].content);
     expect(payload.lead.name).toBe(lead.name);

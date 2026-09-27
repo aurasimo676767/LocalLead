@@ -248,13 +248,21 @@ export async function generateOutreachMessage(
         {
           model: messageModel,
           reasoning: { effort: "low" },
-          instructions: outreachInstructions(
-            prefs,
-            attempt,
-            context,
-            !!previousMessage,
-            senderReach(lead, prefs),
-          ),
+          // Corrections go in the instructions: the model follows those, not the payload.
+          instructions: [
+            outreachInstructions(
+              prefs,
+              attempt,
+              context,
+              !!previousMessage,
+              senderReach(lead, prefs),
+            ),
+            feedback.length
+              ? `CORREGGI la bozza precedente. Questi errori l'hanno fatta scartare: ${feedback.join("; ")}`
+              : "",
+          ]
+            .filter(Boolean)
+            .join("\n"),
           store: false,
           max_output_tokens: 1600,
           text: { format: zodTextFormat(messageSchema, "outreach_message") },

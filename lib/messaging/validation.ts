@@ -87,11 +87,14 @@ export function validateOutreachMessage(
   )
     errors.push("Frase o punteggiatura vietata");
   if (
-    !/potrei|potreste|posso|si potrebbe|propon|rifar|sistemar|creare|costruiamo|costruire|averne|avere|farvi|farvene/i.test(
+    // A concrete offer can be phrased with many verbs, not only "potrei".
+    !/potrei|potreste|posso|possiamo|si potrebbe|si può|propon|rifar|sistemar|cre(?:are|o|iamo)|costru|realizz|prepar|impost|mett|studi|far(?:vi|vene|ei|lo|glielo)|avere|averne|lo faccio|ve lo/i.test(
       text,
     )
   )
-    errors.push("Manca una proposta concreta");
+    errors.push(
+      "Manca una proposta concreta: di' cosa faresti, per esempio un sito vostro con il menu e le foto",
+    );
   // Also compare without the CTA: changing only the final question is never a new draft.
   const body = (value: string) => value.replace(/[^\n.!?]*\?\s*$/, "").trim();
   if (

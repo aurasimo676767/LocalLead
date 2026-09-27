@@ -17,7 +17,7 @@ describe("outreach final validation", () => {
     for (const text of [
       "ciao, mi occupo di siti per locali della zona e posso farvene uno con prodotti foto e contatti\nvi interesserebbe?",
       good.replace(/menu/gi, "prodotti"),
-      good.replace(/, poi ai tavoli[^\n]*/, ""),
+      good.replace(/[, ][^,\n]*\bqr\b[^\n]*/i, ""),
     ])
       expect(
         validateOutreachMessage(text, lead, defaultPreferences).valid,

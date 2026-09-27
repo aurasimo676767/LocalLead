@@ -419,7 +419,7 @@ describe("provider contracts and conservative enrichment", () => {
       .mockResolvedValueOnce({
         output_parsed: {
           ...output,
-          message: message.replace(/, poi ai tavoli[^\n]*/, ""),
+          message: message.replace(/[, ][^,\n]*\bqr\b[^\n]*/i, ""),
           featuresUsed: ["menu", "foto"],
         },
       })
@@ -469,7 +469,7 @@ describe("provider contracts and conservative enrichment", () => {
     expect(request.input[0].role).toBe("user");
     expect(request.instructions).not.toContain("DEVI iniziare");
     expect(request.instructions).toContain("Non scrivere mai il nome del locale");
-    expect(request.instructions).toContain("Chiudi usando esattamente");
+    expect(request.instructions).toContain("Chiudi con una domanda semplice");
     const payload = JSON.parse(request.input[0].content);
     expect(payload.lead.name).toBe(lead.name);
     expect(payload.lead.contactReason).toContain("non ho trovato");

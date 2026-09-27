@@ -285,22 +285,29 @@ export function senderReach(
 /** "Della zona" and "qui vicino" only with the preference on and a nearby venue. */
 export const localClaims = (l: Lead, p: Preferences) =>
   p.local && !!p.sender_city.trim() && senderReach(l, p).reach !== "far";
-// First name only, plus where the sender lives when the venue is nearby.
+// Written the way the sender writes by hand: greeting, what he does, the doubt
+// spelled out, what would go in the site, then the question.
 export function senderIntro(l: Lead, p: Preferences, variant = 0) {
-  const greeting = p.tone === "molto casual" ? "ciao" : "Ciao";
   const name = p.sender_name.trim();
   const city = p.sender_city.trim();
-  if (!name) return `${greeting} 🙂`;
-  const home = !localClaims(l, p)
-    ? ""
-    : senderReach(l, p).reach === "same"
-      ? ` e abito anche io a ${city}`
-      : ` e abito a ${city}${[" qui vicino a voi", " non lontano da voi", ""][variant % 3]}`;
-  return [
-    `${greeting}, mi chiamo ${name}${home} 🙂`,
-    `${greeting} 🙂 mi chiamo ${name}${home}`,
-    `${greeting}, mi chiamo ${name}${home}`,
-  ][variant % 3];
+  const from =
+    !localClaims(l, p) || !city
+      ? ""
+      : senderReach(l, p).reach === "same"
+        ? ` e abito anche io a ${city}`
+        : ` e abito a ${city} qui vicino a voi`;
+  const local = localClaims(l, p) ? " della zona" : "";
+  const line = !name
+    ? `ciao buongiorno! mi occupo della realizzazione di siti web fatti su misura, specialmente per i locali${local}`
+    : [
+        `ciao buongiorno! mi chiamo ${name}${from}, mi occupo della realizzazione di siti web fatti su misura, specialmente per i locali${local}`,
+        `ciao! mi chiamo ${name}${from} e faccio siti web su misura, soprattutto per i locali${local}`,
+        `ciao buongiorno! mi chiamo ${name}${from}, faccio siti web fatti su misura per bar e ristoranti${local}`,
+      ][variant % 3];
+  // A neutral tone keeps the same words without the chatty opening.
+  return p.tone === "neutro"
+    ? line.replace(/^ciao buongiorno!|^ciao!/, "Ciao,").replace(/^./, "C")
+    : line;
 }
 // Each line has its own pool. Neighbouring indexes differ on every line, so a
 // regenerated draft reads as a new message rather than a new closing question.
@@ -318,26 +325,22 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
       ? "prodotti"
       : "menu";
   const theMenu = menu === "prodotti" ? "i prodotti" : `il ${menu}`;
-  const toMenu = menu === "prodotti" ? "ai prodotti" : `al ${menu}`;
-  const local = localClaims(l, p) ? " della zona" : "";
+  // The photos worth showing depend on what the venue actually sells.
+  const photos = ["Pub", "Cocktail bar"].includes(l.category)
+    ? "le foto dei drink e dei taglieri"
+    : ["Bar", "Pasticceria", "Gelateria"].includes(l.category)
+      ? "le foto dei dolci, delle colazioni e degli aperitivi"
+      : l.category === "Panificio"
+        ? "le foto del pane e dei dolci"
+        : "le foto dei piatti";
   const platform = context.contactReason.split("c'è ")[1] || "la pagina social";
   const unsure = context.contactReason.includes("non so")
     ? " e non so se ne avete già uno"
     : "";
-  const google = pick(
-    [
-      "Ho visto il vostro locale su Google e",
-      "Vi ho trovati su Google e",
-      "Cercando su Google ho trovato il vostro locale e",
-      "Girando su Google sono capitato sul vostro locale e",
-    ],
-    variant,
-    0,
-  );
   const newSite = [
-    `Il sito lo costruiamo insieme come lo volete voi con i vostri colori e le vostre foto e dentro ci mettiamo ${theMenu}`,
-    `Potrei creare un sito completamente su misura per voi, dalla grafica ${toMenu}`,
-    `Potrei farvene uno tutto vostro e personalizzato sul vostro stile con ${theMenu} e i contatti`,
+    `si potrebbe farne uno su misura come piace a voi, con ${photos}, ${theMenu}, le foto del locale e la vostra storia se volete`,
+    `ve lo farei apposta per voi, con ${photos}, ${theMenu} e le foto del locale, tutto con i vostri colori`,
+    `lo costruiamo insieme come lo volete voi, con ${photos}, ${theMenu} e le foto del locale`,
   ];
   const copy: Record<
     ContactReasonKind,
@@ -345,102 +348,102 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
   > = {
     no_website: {
       observations: [
-        `ho cercato il vostro sito ma non sono riuscito a trovarlo${unsure}`,
-        `stavo cercando il vostro sito ma non ne ho trovato uno${unsure}`,
-        `un vostro sito però non l'ho trovato${unsure}`,
+        `ho visto che non avete un sito (almeno, ho cercato su google ma non ho trovato nulla) dove far vedere ${theMenu} e le foto di quello che fate${unsure}`,
+        `ho cercato su google un vostro sito con ${theMenu} e le foto ma non ho trovato niente${unsure}`,
+        `stavo cercando su google un vostro sito ma non l'ho trovato, e ${theMenu} e le foto si vedono solo sui social${unsure}`,
       ],
       pitches: newSite,
     },
     social_only: {
       observations: [
-        `come sito c'è ${platform} ma un sito vero e proprio non l'ho trovato`,
-        `come sito avete messo ${platform} e basta`,
-        `il link del sito apre ${platform} e un sito tutto vostro non c'è`,
+        `ho visto su google che come sito c'è ${platform}, ma un sito vostro vero e proprio non l'ho trovato`,
+        `su google come sito viene fuori ${platform} e basta, e ${theMenu} si trova solo scorrendo i post`,
+        `ho cercato su google e al posto del sito c'è ${platform}, quindi chi vi cerca deve mettersi a scorrere`,
       ],
       pitches: newSite,
     },
     broken_website: {
       observations: [
-        "ho provato ad aprire il vostro sito ma al momento non si apre",
-        "ho provato ad aprire anche il vostro sito ma sembra che al momento non funzioni",
-        "stavo guardando il sito ma sembra esserci un problema nell'aprirlo",
+        "ho trovato il vostro sito su google ma ho provato ad aprirlo e non si apre",
+        "ho provato ad aprire il vostro sito che c'è su google ma sembra non funzionare",
+        "stavo guardando il vostro sito trovato su google ma non si apre",
       ],
       pitches: [
-        `Ve lo potrei sistemare come piace a voi mantenendo le informazioni che avete già e mettendo bene in vista ${theMenu}`,
-        `Potrei rifarlo su misura per voi, dalla grafica ${toMenu} senza perdere i contenuti che avete già`,
-        `Si potrebbe sistemare e renderlo davvero vostro con i vostri colori e ${theMenu} sempre in vista`,
+        `ve lo potrei sistemare come piace a voi, tenendo quello che avete già e mettendo bene in vista ${theMenu} e ${photos}`,
+        `si potrebbe rifare su misura, con ${theMenu}, ${photos} e le informazioni che avete già`,
+        `ve lo rimetto in piedi e lo facciamo come lo volete voi, con ${theMenu} e ${photos} sempre in vista`,
       ],
     },
     poor_website: {
       observations: [
-        "ho dato un'occhiata al sito e secondo me si potrebbe rendere parecchio più moderno",
-        "stavo guardando il vostro sito e l'aspetto si potrebbe curare molto meglio",
-        "poi ho aperto il sito e secondo me la grafica si potrebbe aggiornare",
+        "ho visto su google il vostro sito e secondo me si potrebbe rendere parecchio più moderno",
+        "ho dato un'occhiata al vostro sito trovato su google e l'aspetto si potrebbe curare molto meglio",
+        "ho aperto il vostro sito da google e secondo me la grafica si potrebbe aggiornare",
       ],
       pitches: [
-        `Potrei rifarlo su misura per voi con i vostri colori mantenendo ${theMenu} e le informazioni che avete già`,
-        "Si potrebbe sistemare grafica e navigazione come piace a voi senza stravolgere tutto",
-        "Potrei renderlo più curato e comodo dal telefono e completamente personalizzato sul vostro stile",
+        `ve lo rifarei su misura con i vostri colori, tenendo ${theMenu} e le informazioni che avete già`,
+        `si potrebbe sistemare grafica e menu come piace a voi, senza stravolgere tutto`,
+        `lo renderei più curato e comodo dal telefono, con ${photos} messe come si deve`,
       ],
     },
     sparse_website: {
       observations: [
-        "poi ho aperto il sito ed è un peccato che ci sia così poco dentro",
-        "stavo guardando il vostro sito e ci sono davvero pochi contenuti sull'attività",
-        "ho dato un'occhiata al sito e al momento è molto scarno",
+        "ho aperto il vostro sito da google ed è un peccato che ci sia così poco dentro",
+        "ho visto il vostro sito su google e ci sono davvero pochi contenuti sull'attività",
+        "sono andato sul vostro sito da google e al momento è molto scarno",
       ],
       pitches: [
-        `Potrei completarlo come piace a voi con ${theMenu} e le foto tutti in un posto`,
-        "Si potrebbe aggiungere quello che manca e renderlo più curato e su misura per voi con i vostri colori e le vostre foto",
-        `Potrei sistemare contenuti e ${menu} su misura per voi senza stravolgere il sito`,
+        `lo completerei come piace a voi, con ${theMenu}, ${photos} e i contatti tutti in un posto`,
+        `si potrebbe aggiungere quello che manca e renderlo più curato, con ${photos} e ${theMenu}`,
+        `sistemerei contenuti e ${menu} su misura per voi, senza stravolgere il sito`,
       ],
     },
     menu_ads: {
       observations: [
-        "ho aperto il menu online ma c'è parecchia pubblicità intorno",
-        "ho aperto il vostro menu ma gli annunci lo rendono poco pulito",
-        "il menu online è su una piattaforma piena di pubblicità",
+        "ho aperto il vostro menu online da google e c'è parecchia pubblicità intorno",
+        "ho aperto da google il vostro menu online ma gli annunci lo rendono poco pulito",
+        "il menu che si trova da google è su una piattaforma piena di pubblicità",
       ],
       pitches: [
-        `Potrei mettere ${theMenu} su un sito tutto vostro pulito e personalizzato come piace a voi`,
-        "Si potrebbe avere un menu vostro senza annunci e fatto su misura con i vostri colori",
-        `Potrei creare un sito come lo volete voi con ${theMenu} senza quella pubblicità`,
+        `metterei ${theMenu} su un sito tutto vostro, pulito e fatto come piace a voi, con ${photos}`,
+        `si potrebbe avere un menu vostro senza annunci, su misura con i vostri colori e ${photos}`,
+        `vi farei un sito vostro con ${theMenu} e ${photos}, senza quella pubblicità`,
       ],
     },
     instagram_menu_only: {
       observations: [
-        "il menu si trova principalmente su Instagram",
-        "cercando il menu ho trovato il link su Instagram",
-        "poi ho visto il link al menu su Instagram",
+        "ho cercato il menu su google e si trova praticamente solo su instagram",
+        "cercando il menu da google sono finito su instagram",
+        "su google non ho trovato un menu, sta solo tra i post di instagram",
       ],
       pitches: [
-        `Potrei mettere ${theMenu} su un sito tutto vostro fatto su misura con i vostri colori e le vostre foto`,
-        `Si potrebbe avere ${theMenu} in un sito vostro personalizzato come piace a voi e più rapido da aprire`,
-        `Potrei creare un sito come lo volete voi con ${theMenu} e le foto del locale`,
+        `metterei ${theMenu} su un sito tutto vostro fatto su misura, con ${photos} e le foto del locale`,
+        `si potrebbe avere ${theMenu} in un sito vostro, come piace a voi e più rapido da aprire`,
+        `vi farei un sito come lo volete voi, con ${theMenu}, ${photos} e i contatti`,
       ],
     },
     good_socials_bad_web: {
       observations: [
-        "poi ho guardato la vostra pagina e le foto sono curate ma il sito non è allo stesso livello",
-        "sui social curate bene le foto mentre il sito resta molto più scarno",
-        "la vostra pagina è curata ma il sito stona un po' col resto",
+        "ho guardato la vostra pagina e le foto sono curate, però il sito che c'è su google non è allo stesso livello",
+        "sui social curate bene le foto mentre il sito trovato su google resta molto più scarno",
+        "la vostra pagina è curata ma il sito che si trova da google stona un po' col resto",
       ],
       pitches: [
-        `Potrei rifare il sito su misura con lo stesso stile delle vostre foto e una parte dedicata ${toMenu}`,
-        "Si potrebbe creare qualcosa di molto più curato e personalizzato come piace a voi",
-        `Potrei rendere il sito coerente con la pagina e con i vostri colori sistemando anche ${theMenu}`,
+        `rifarei il sito su misura con lo stesso stile delle vostre foto e una parte dedicata a ${theMenu}`,
+        "si potrebbe fare qualcosa di molto più curato e come piace a voi, in linea con la pagina",
+        `lo renderei coerente con la pagina, con i vostri colori, ${photos} e ${theMenu}`,
       ],
     },
     events_no_website: {
       observations: [
-        "da quello che vedo organizzate serate ma non ho trovato un vostro sito dove raccoglierle",
-        "stavo guardando le vostre serate ma non ho trovato un sito dove vederle tutte",
-        "ci sono le vostre serate ma un sito del locale non l'ho trovato",
+        "ho visto che organizzate serate ma un vostro sito dove raccoglierle non l'ho trovato su google",
+        "stavo guardando le vostre serate e su google non c'è un sito dove vederle tutte insieme",
+        "ci sono le vostre serate ma un sito del locale su google non l'ho trovato",
       ],
       pitches: [
-        `Potrei farvi un sito su misura per le prossime date con ${theMenu} e i contatti`,
-        "Si potrebbero raccogliere serate e prossime date in un sito vostro fatto come piace a voi",
-        `Potrei creare uno spazio per gli eventi personalizzato sul vostro stile con ${theMenu}`,
+        `vi farei un sito su misura con le prossime date, ${theMenu} e i contatti`,
+        `si potrebbero raccogliere serate e prossime date in un sito vostro, fatto come piace a voi`,
+        `farei uno spazio per le serate con ${photos} e ${theMenu}, tutto con i vostri colori`,
       ],
     },
   };
@@ -448,11 +451,11 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
   // Why a site matters, in plain words and without promising numbers.
   const why = pick(
     [
-      `Io faccio siti per locali${local} e oggi tanta gente prima di uscire cerca tutto dal telefono, se trova subito ${theMenu} e le foto in un sito curato è molto più facile che scelga voi`,
-      `Mi occupo proprio di siti per locali${local}. Ormai quasi tutti prima di scegliere dove andare guardano dal telefono e un sito curato con ${theMenu} e le foto fa davvero la differenza anche sulle vendite`,
-      `Creo siti per locali${local} e vi dico la verità, chi vi cerca dal telefono vuole vedere subito ${theMenu} e qualche foto e quando li trova in un sito curato è molto più propenso a passare da voi`,
-      `Faccio siti per locali${local} e secondo me oggi un sito curato con ${theMenu} e le foto aiuta tantissimo le vendite, perché la gente decide dove andare guardando il telefono`,
-      `Realizzo siti per locali${local} e ormai funziona così, prima di uscire si cerca tutto dal telefono e chi trova subito ${theMenu} in un sito curato ha molta più voglia di venire da voi`,
+      `oggi quasi tutti prima di uscire guardano tutto dal telefono, e se trovano subito ${theMenu} e le foto è molto più facile che scelgano voi`,
+      `la gente ormai decide dove andare guardando il telefono, e un sito curato con ${theMenu} e le foto fa davvero la differenza anche sulle vendite`,
+      `chi vi cerca dal telefono vuole vedere subito ${theMenu} e qualche foto, e quando li trova è molto più propenso a passare da voi`,
+      `secondo me oggi un sito curato con ${theMenu} e ${photos} aiuta tantissimo le vendite, perché la gente sceglie dal telefono`,
+      `ormai funziona così, prima di uscire si guarda dal telefono e chi trova subito ${theMenu} in un sito curato ha molta più voglia di venire da voi`,
     ],
     variant,
     1,
@@ -461,27 +464,30 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
   if (p.qr && !isProduct && !/qr/i.test(pitch))
     pitch += pick(
       [
-        ", poi ai tavoli si può mettere un QR che apre direttamente il menu",
-        " e ai tavoli anche un QR che apre subito il menu",
-        " con anche un QR per i tavoli che porta dritto al menu",
+        ", e ai tavoli si può mettere un qr che apre direttamente il menu",
+        " e magari ai tavoli un qr che apre subito il menu",
+        ", con anche un qr per i tavoli che porta dritto al menu",
       ],
       variant,
       0,
     );
+  // "crearne uno" only fits a venue that has no site at all.
   const cta = pick(
     [
-      "Vi interesserebbe?",
-      "Potrebbe interessarvi?",
-      "Che ne pensate?",
-      "Può interessarvi?",
-      "Vi potrebbe interessare una cosa del genere?",
+      ["no_website", "social_only"].includes(context.reasonKind)
+        ? "vi potrebbe interessare crearne uno apposta?"
+        : "vi potrebbe interessare?",
+      "vi interesserebbe?",
+      "che ne pensate?",
+      "vi potrebbe interessare una cosa del genere?",
+      "potrebbe interessarvi?",
     ],
     variant,
     3,
   );
   return [
     senderIntro(l, p, variant),
-    `${google} ${pick(selected.observations, variant, 0)}`,
+    pick(selected.observations, variant, 0),
     why,
     pitch,
     cta,
@@ -553,7 +559,7 @@ export function messageProblems(
     "Apertura non consentita",
   );
   const banned = trimmed.match(
-    /nella scheda Google non è indicato un sito|non risulta (?:un )?sito(?: web)?|il sito non è presente nella scheda|sito semplice|sito base|pagina semplice|recension|stelle su google|rating|segno che|considerat|apprezzat|reputazion|punto di riferimento|valorizzare|presenza online|esperienza digitale|\bsoluzione\b|opportunità|\bclientela\b|\bprofessionale\b|ottimizzare|senza impegno|con calma|rendere tutto più comodo|val(?:e|ere) la pena|potrebbe essere (?:comodo|utile)|avere un posto dove|magari con|prenotazion|gentile attività|le scrivo per proporle|leader nel settore|soluzioni digitali|potenziare.*business|massimizzare|incrementare.*presenza online|vi scrivo per il vostro sito|posso aiutarvi ad aggiornarlo|potrebbe servirvi un sito|darvi una mano col sito/i,
+    /nella scheda Google non è indicato un sito|non risulta (?:un )?sito(?: web)?|il sito non è presente nella scheda|sito semplice|sito base|pagina semplice|recension|stelle su google|rating|segno che|considerat|apprezzat|reputazion|punto di riferimento|valorizzare|presenza online|esperienza digitale|\bsoluzione\b|opportunità|\bclientela\b|\bprofessionale\b|ottimizzare|senza impegno|con calma|rendere tutto più comodo|val(?:e|ere) la pena|potrebbe essere (?:comodo|utile)|avere un posto dove|prenotazion|gentile attività|le scrivo per proporle|leader nel settore|soluzioni digitali|potenziare.*business|massimizzare|incrementare.*presenza online|vi scrivo per il vostro sito|posso aiutarvi ad aggiornarlo|potrebbe servirvi un sito|darvi una mano col sito/i,
   );
   fail(!!banned, `Espressione vietata: "${banned?.[0]}"`);
   const lines = trimmed.split(/\n/).filter((line) => line.trim());
@@ -579,7 +585,7 @@ export function messageProblems(
       ).test(lines.slice(0, 2).join(" ")),
     `Presentati all'inizio con "mi chiamo ${name}"`,
   );
-  fail(!/su google/i.test(trimmed), "Di' che hai visto il locale su Google");
+  fail(!/google/i.test(trimmed), "Di' che hai cercato il locale su Google");
   // Why a site sells, without promising numbers.
   fail(
     !/più facile che|fa (?:davvero )?la differenza|vendit|più propens|scelga voi|scelgano voi|passare da voi|venire da voi/i.test(
@@ -610,7 +616,7 @@ export function messageProblems(
     "Di' che fai siti per locali",
   );
   fail(
-    !/(vi interesserebbe|potrebbe interessarvi|che ne pensate|può interessarvi|vi potrebbe interessare una cosa del genere)\?$/i.test(
+    !/(vi interesserebbe|potrebbe interessarvi|che ne pensate|può interessarvi|vi potrebbe interessare[^?]{0,60})\?$/i.test(
       trimmed,
     ),
     "Chiudi con una delle domande indicate",
@@ -623,7 +629,7 @@ export function messageProblems(
   );
   // Light, casual punctuation: a few commas, at most two full stops inside.
   fail(
-    (trimmed.match(/,/g) || []).length > 6 ||
+    (trimmed.match(/,/g) || []).length > 10 ||
       (trimmed.match(/\.(?!\s*$)/gm) || []).length > 2,
     "Troppa punteggiatura: meno virgole e punti",
   );
@@ -632,7 +638,11 @@ export function messageProblems(
     (trimmed.match(/\p{Extended_Pictographic}/gu) || []).length > 2,
     "Al massimo due emoji",
   );
-  fail(trimmed.includes("!"), "Niente punti esclamativi");
+  // One "ciao buongiorno!" is how the sender writes; a shouty draft is not.
+  fail(
+    (trimmed.match(/!/g) || []).length > 1,
+    "Al massimo un punto esclamativo, nel saluto",
+  );
   fail(
     !lead.analysis.evidence.some(
       (e) => e.kind === "curated_social" && e.confidence >= 0.7,

@@ -7,6 +7,7 @@ import {
   ScanSearch,
   Trash2,
   SlidersHorizontal,
+  Sparkles,
   X,
 } from "lucide-react";
 import { useWorkspace, useTask } from "./workspace";
@@ -17,18 +18,22 @@ import {
   statuses,
   statusLabels,
   contacted,
+  contactable,
   deletable,
   type Lead,
 } from "@/lib/model";
 import { isLandlinePhone } from "@/lib/utils";
 import { fitsFilter } from "@/lib/scoring";
+import { buildOutreachContext } from "@/lib/messaging";
 const cityKey = (city: string) => city.trim().toLocaleLowerCase("it");
 export function LeadList({
   mode = "all",
 }: {
   mode?: "all" | "contacted" | "archive";
 }) {
-  const { leads } = useWorkspace();
+  const { leads, preferences, command, notify } = useWorkspace();
+  const drafts = useTask();
+  const [drafted, setDrafted] = useState("");
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("");
   const [category, setCategory] = useState("");
@@ -101,6 +106,13 @@ export function LeadList({
             : b.created_at.localeCompare(a.created_at),
     );
   const removable = inCity.filter(deletable);
+  // Leads whose draft is still missing: writing them in one go saves a click each.
+  const pending = inCity.filter(
+    (l) =>
+      contactable(l) &&
+      !l.messages.length &&
+      buildOutreachContext(l, preferences).status === "ready",
+  );
   const withoutSite = inCity.filter((l) => fitsFilter(l, "none")).length;
   const extraFilters =
     [category, status, channel, contact].filter(Boolean).length +
@@ -173,6 +185,33 @@ export function LeadList({
                 ? `Trova altri locali a ${activeCity.name}`
                 : "Trova altri locali"}
             </Link>
+            {pending.length > 0 && (
+              <button
+                className="button secondary"
+                disabled={drafts.busy}
+                onClick={() =>
+                  void drafts.run(async () => {
+                    for (const [i, lead] of pending.entries()) {
+                      setDrafted(`Bozza ${i + 1} di ${pending.length}`);
+                      await command("message", undefined, lead.id);
+                    }
+                    setDrafted("");
+                    notify(
+                      pending.length === 1
+                        ? "1 bozza pronta"
+                        : `${pending.length} bozze pronte`,
+                    );
+                  })
+                }
+              >
+                {drafts.busy ? (
+                  <span className="spinner" />
+                ) : (
+                  <Sparkles size={16} />
+                )}
+                {drafts.busy ? drafted : `Prepara ${pending.length} bozze`}
+              </button>
+            )}
             {removable.length > 0 && (
               <button
                 className="button secondary danger"

@@ -6,8 +6,9 @@ import { ScanSearch, MapPin, ArrowRight, Check } from "lucide-react";
 import { useWorkspace, useTask } from "./workspace";
 import { saveScanBatch } from "./scan-batch";
 import { PageHeading, Field, ErrorText, Score, Status } from "./ui";
-import { categories, type Lead } from "@/lib/model";
+import { categories, contactable, type Lead } from "@/lib/model";
 import { fitsFilter } from "@/lib/scoring";
+import { buildOutreachContext } from "@/lib/messaging";
 export function Discover() {
   const { command, config, leads, preferences } = useWorkspace();
   const task = useTask();
@@ -70,6 +71,31 @@ export function Discover() {
             ...w,
             `${rows[i].lead.name}: ${e instanceof Error ? e.message : "Analisi non disponibile"}`,
           ]);
+        }
+      }
+      // Drafts are written straight away: opening a lead should need no wait.
+      const ready = completed.filter(
+        (row) =>
+          contactable(row.lead) &&
+          !row.lead.messages.length &&
+          buildOutreachContext(row.lead, preferences).status === "ready",
+      );
+      for (const [i, row] of ready.entries()) {
+        setProgress(`Messaggio ${i + 1} di ${ready.length}: ${row.lead.name}`);
+        try {
+          const written = await command("message", undefined, row.lead.id);
+          if (written.lead) {
+            const at = completed.findIndex((x) => x.lead.id === row.lead.id);
+            if (at >= 0)
+              completed[at] = { ...completed[at], lead: written.lead };
+            setResults([...completed]);
+          }
+        } catch (e) {
+          const problem =
+            e instanceof Error ? e.message : "Messaggio non disponibile";
+          setWarnings((w) => [...w, `${row.lead.name}: ${problem}`]);
+          // A rate limit stops the batch: the remaining drafts wait for the lead page.
+          if (/Troppe richieste/i.test(problem)) break;
         }
       }
       setProgress("Ricerca completata");

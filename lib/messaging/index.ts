@@ -586,13 +586,8 @@ export function messageProblems(
     `Presentati all'inizio con "mi chiamo ${name}"`,
   );
   fail(!/google/i.test(trimmed), "Di' che hai cercato il locale su Google");
-  // Why a site sells, without promising numbers.
-  fail(
-    !/più facile che|fa (?:davvero )?la differenza|vendit|più propens|scelga voi|scelgano voi|passare da voi|venire da voi/i.test(
-      trimmed,
-    ),
-    "Spiega in una frase perché un sito aiuta le vendite",
-  );
+  // Why a site helps is asked in the prompt but not matched on wording:
+  // requiring fixed phrases made every AI draft repeat the same sentence.
   fail(
     /\d+\s?%|raddoppi|triplic|garantit/i.test(trimmed),
     "Non promettere numeri o risultati garantiti",
@@ -615,11 +610,10 @@ export function messageProblems(
       !/sit[oi]/i.test(text),
     "Di' che fai siti per locali",
   );
+  // A smile after the question mark is still a question.
   fail(
-    !/(vi interesserebbe|potrebbe interessarvi|che ne pensate|può interessarvi|vi potrebbe interessare[^?]{0,60})\?$/i.test(
-      trimmed,
-    ),
-    "Chiudi con una delle domande indicate",
+    !/\?[\s\p{Extended_Pictographic}️]*$/u.test(trimmed),
+    "Chiudi con una domanda semplice",
   );
   fail(
     /ti va di parlarne|se vi va ne parliamo|possiamo sentirci|resto a disposizione/i.test(

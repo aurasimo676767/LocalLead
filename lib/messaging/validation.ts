@@ -88,7 +88,7 @@ export function validateOutreachMessage(
     errors.push("Frase o punteggiatura vietata");
   if (
     // A concrete offer can be phrased with many verbs, not only "potrei".
-    !/potrei|potreste|posso|possiamo|si potrebbe|si può|propon|rifar|sistemar|cre(?:are|o|iamo)|costru|realizz|prepar|impost|mett|studi|far(?:vi|vene|ei|lo|glielo)|avere|averne|lo faccio|ve lo/i.test(
+    !/potrei|potreste|posso|possiamo|si potrebbe|si può|propon|rifar|sistemar|cre(?:are|o|iamo)|costru|realizz|prepar|impost|mett|studi|far(?:vi|vene|ei|lo|glielo)|avere|averne|lo faccio|ve lo|metterei|magari con|sito[^\n]{0,40}\bcon (?:il|le|i|un|una|la)\b/i.test(
       text,
     )
   )

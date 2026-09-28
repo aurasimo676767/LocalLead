@@ -401,7 +401,7 @@ describe("provider contracts and conservative enrichment", () => {
     );
     expect(result.model).toBe("fallback locale");
     expect(mocks.parse).toHaveBeenCalledTimes(1);
-    expect(mocks.parse.mock.calls[0][1].timeout).toBeLessThanOrEqual(10_000);
+    expect(mocks.parse.mock.calls[0][1].timeout).toBeLessThanOrEqual(25_000);
   });
   it("retries missing QR with feedback and honors only the message model override", async () => {
     vi.stubEnv("OPENAI_API_KEY", "offline-test-key");

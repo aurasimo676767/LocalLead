@@ -238,7 +238,8 @@ export async function generateOutreachMessage(
   }));
   if (!process.env.OPENAI_API_KEY || lead.is_demo || !evidence.length)
     return fallback();
-  const deadline = Date.now() + 30_000;
+  // The message model takes ~7s per draft: a tight limit turned slow replies into template text.
+  const deadline = Date.now() + 45_000;
   // Each retry sends back the exact rules the previous draft broke.
   for (let attempt = 0; attempt < 3; attempt++) {
     const remaining = deadline - Date.now();
@@ -277,7 +278,7 @@ export async function generateOutreachMessage(
             },
           ],
         },
-        { timeout: Math.min(10_000, remaining) },
+        { timeout: Math.min(25_000, remaining) },
       );
       const parsed = messageSchema.parse(r.output_parsed);
       if (

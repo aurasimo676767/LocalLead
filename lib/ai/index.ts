@@ -193,7 +193,7 @@ export async function generateOutreachMessage(
   const previousMessage = lead.messages.at(-1)?.text || "";
   const comparisons = [...recent.slice(-10), previousMessage].filter(Boolean);
   const payload = buildMessagePayload(lead, prefs, recent, previousMessage);
-  const messageModel = process.env.OPENAI_MESSAGE_MODEL || "gpt-5.6-terra";
+  const messageModel = process.env.OPENAI_MESSAGE_MODEL || "gpt-5.6-luna";
   let feedback: string[] = [];
   const start = recent.length + lead.messages.length;
   const fallback = () => {

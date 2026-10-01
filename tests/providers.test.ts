@@ -463,7 +463,7 @@ describe("provider contracts and conservative enrichment", () => {
     expect(result.text).toBe(text);
     expect(result.warning).toBe("");
     const request = mocks.parse.mock.calls[0][0];
-    expect(request.model).toBe("gpt-5.6-terra");
+    expect(request.model).toBe("gpt-5.6-luna");
     expect(request.reasoning).toEqual({ effort: "low" });
     expect(request.input).toHaveLength(1);
     expect(request.input[0].role).toBe("user");

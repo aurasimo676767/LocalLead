@@ -298,6 +298,21 @@ describe("provider contracts and conservative enrichment", () => {
     expect(result.text.length).toBeGreaterThanOrEqual(350);
     expect(result.text.length).toBeLessThanOrEqual(900);
   });
+  it("treats a booking portal as an external page, without fetching it", async () => {
+    const lead = await enrichLead(
+      newLead({
+        name: "Casa Sole",
+        city: "Vittoria",
+        category: "B&B",
+        website_url: "https://www.booking.com/hotel/it/casa-sole.html",
+      }),
+    );
+    expect(mocks.publicHtml).not.toHaveBeenCalled();
+    expect(lead.website_status).toBe("external_page_only");
+    expect(
+      lead.analysis.evidence.find((e) => e.kind === "no_website")?.text,
+    ).toBe("Su Google Maps il sito indicato è la pagina Booking");
+  });
   it.each([401, 403, 429])(
     "does not turn HTTP %i access restrictions into a broken-site pitch",
     async (status) => {

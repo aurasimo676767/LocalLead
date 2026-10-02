@@ -17,6 +17,7 @@ import {
   delivery,
   hostIs,
   normalizePhone,
+  portalName,
 } from "../utils";
 import { scoreLead } from "../scoring";
 import { platformPrefix } from "../messaging";
@@ -30,6 +31,8 @@ function websitePlatform(url: string) {
     return { label: "il profilo Instagram", field: "instagram_url" as const };
   if (hostIs(url, "tiktok.com")) return { label: "il profilo TikTok" };
   if (hostIs(url, "linktr.ee")) return { label: "una pagina Linktree" };
+  const portal = portalName(url);
+  if (portal) return { label: `la pagina ${portal}` };
   if (externalMenu(url) || delivery(url))
     return { label: "una pagina su una piattaforma esterna" };
   return null;
@@ -41,7 +44,8 @@ export async function enrichLead(input: Lead): Promise<Lead> {
     !!input.website_url &&
     !social(input.website_url) &&
     !externalMenu(input.website_url) &&
-    !delivery(input.website_url);
+    !delivery(input.website_url) &&
+    !portalName(input.website_url);
   const hasCurrentWebsiteCheck = input.sources.some(
     (source) =>
       source.source_type === "website_analysis" &&

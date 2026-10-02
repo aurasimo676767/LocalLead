@@ -22,7 +22,8 @@ import {
   similarity,
   messageAllowed,
 } from "@/lib/messaging";
-import { demoLeads } from "@/lib/demo";
+import { demoLeads, demoWorkspace } from "@/lib/demo";
+import { validateOutreachMessage } from "@/lib/messaging/validation";
 import {
   extractHtml,
   classifyWebsite,
@@ -145,6 +146,27 @@ describe("scoring and evidence", () => {
         .analysis.reasons.filter((r) => r.points > 0)
         .every((r) => r.evidence_ids.length),
     ).toBe(true));
+  it("ships lodging demo leads with a ready, valid draft", () => {
+    const lodging = demoLeads().filter((l) =>
+      ["B&B", "Casa vacanza"].includes(l.category),
+    );
+    expect(lodging).toHaveLength(2);
+    expect(
+      demoWorkspace().leads.filter((l) =>
+        lodging.some((x) => x.name === l.name),
+      ),
+    ).toHaveLength(2);
+    for (const lead of lodging) {
+      expect(lead.lead_score).toBeGreaterThanOrEqual(40);
+      expect(
+        validateOutreachMessage(
+          fallbackMessage(lead, defaultPreferences),
+          lead,
+          defaultPreferences,
+        ).errors,
+      ).toEqual([]);
+    }
+  });
   it("filters without pretending unknown means none", () =>
     expect(fitsFilter(base(), "none")).toBe(false));
 });

@@ -8,7 +8,12 @@ import {
 } from "./model";
 import { scoreLead } from "./scoring";
 const specs: Array<
-  Partial<Lead> & { name: string; category: Lead["category"]; kinds: string[] }
+  Partial<Lead> & {
+    name: string;
+    category: Lead["category"];
+    kinds: string[];
+    texts?: Record<string, string>;
+  }
 > = [
   {
     name: "Forno delle Nuvole",
@@ -84,6 +89,21 @@ const specs: Array<
     website_status: "unknown",
     kinds: [],
   },
+  {
+    name: "Casa delle Zagare",
+    category: "B&B",
+    website_status: "external_page_only",
+    kinds: ["no_website", "facebook_active", "reviews"],
+    texts: {
+      no_website: "Su Google Maps il sito indicato è la pagina Booking",
+    },
+  },
+  {
+    name: "Dimora del Carrubo",
+    category: "Casa vacanza",
+    website_status: "none",
+    kinds: ["no_website", "facebook_active", "reviews"],
+  },
 ];
 const descriptions: Record<string, string> = {
   no_website: "Verifica demo: nessun dominio proprietario",
@@ -100,7 +120,7 @@ const descriptions: Record<string, string> = {
 };
 export function demoLeads(): Lead[] {
   return specs.map((s, i) => {
-    const { kinds, ...fields } = s;
+    const { kinds, texts, ...fields } = s;
     const l = newLead({
       ...fields,
       city: "Vittoria",
@@ -126,7 +146,7 @@ export function demoLeads(): Lead[] {
     l.analysis.evidence = kinds.map((kind) => ({
       id: uid(),
       kind,
-      text: descriptions[kind],
+      text: texts?.[kind] || descriptions[kind],
       url: `https://example.com/demo/fonte-${i}`,
       confidence: 0.95,
     }));
@@ -152,7 +172,13 @@ export function demoLeads(): Lead[] {
     return scoreLead(l);
   });
 }
-export const demoWorkspace = (): Workspace => ({
-  leads: demoLeads().slice(0, 8),
-  preferences: { ...defaultPreferences },
-});
+export const demoWorkspace = (): Workspace => {
+  const all = demoLeads();
+  return {
+    leads: [
+      ...all.slice(0, 8),
+      ...all.filter((l) => ["B&B", "Casa vacanza"].includes(l.category)),
+    ],
+    preferences: { ...defaultPreferences },
+  };
+};

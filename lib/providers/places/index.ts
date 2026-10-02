@@ -30,6 +30,8 @@ const queryVariants: Record<Lead["category"], string[]> = {
   Gastronomia: ["gastronomia", "salumeria"],
   Rosticceria: ["rosticceria", "tavola calda"],
   "Altro food": ["street food", "cibo da asporto"],
+  "B&B": ["bed and breakfast", "b&b", "affittacamere"],
+  "Casa vacanza": ["casa vacanze", "casa vacanza", "appartamento vacanze"],
 };
 const isKnown = (lead: Lead, known?: Set<string>) =>
   !!known && dedupKeys(lead).some((key) => known.has(key));

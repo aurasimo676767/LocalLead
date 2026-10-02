@@ -12,6 +12,8 @@ export const categories = [
   "Gastronomia",
   "Rosticceria",
   "Altro food",
+  "B&B",
+  "Casa vacanza",
 ] as const;
 export const statuses = [
   "new",

@@ -84,6 +84,29 @@ export const delivery = (url: string) =>
   ["justeat.it", "deliveroo.it", "glovoapp.com", "ubereats.com"].some((h) =>
     hostIs(url, h),
   );
+// Booking and listing sites: a page there is not the venue's own website.
+const portals: [string, string][] = [
+  ["booking.com", "Booking"],
+  ["airbnb.it", "Airbnb"],
+  ["airbnb.com", "Airbnb"],
+  ["vrbo.com", "Vrbo"],
+  ["expedia.it", "Expedia"],
+  ["expedia.com", "Expedia"],
+  ["hotels.com", "Hotels.com"],
+  ["agoda.com", "Agoda"],
+  ["tripadvisor.it", "Tripadvisor"],
+  ["tripadvisor.com", "Tripadvisor"],
+  ["subito.it", "Subito"],
+  ["casevacanza.it", "CaseVacanza.it"],
+];
+export const portalNames: readonly string[] = [
+  ...new Set(portals.map(([, name]) => name)),
+];
+export const portalName = (url: string) =>
+  portals.find(([host]) => hostIs(url, host))?.[1] || "";
+/** The portal named by a "...il sito indicato è la pagina X" evidence. */
+export const portalFromText = (text: string) =>
+  portalNames.find((name) => text.endsWith(`la pagina ${name}`)) || "";
 export function dedupKeys(
   l: Pick<
     Lead,
@@ -102,6 +125,7 @@ export function dedupKeys(
           !social(l.website_url) &&
           !externalMenu(l.website_url) &&
           !delivery(l.website_url) &&
+          !portalName(l.website_url) &&
           `domain:${d}`,
         name &&
           normalizeText(l.address) &&

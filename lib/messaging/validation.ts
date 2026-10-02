@@ -1,4 +1,5 @@
 import type { Lead, Preferences } from "../model";
+import { sectorOf } from "../sector";
 import {
   buildOutreachContext,
   messageFacts,
@@ -17,16 +18,20 @@ export function buildMessagePayload(
   const evidence = lead.analysis.evidence.filter(
     (e) => e.confidence >= 0.7 && !!e.url,
   );
-  const menuRelevant = lead.category !== "Panificio";
-  const recommendedFeatures = [
-    menuRelevant ? "menu" : "foto",
-    ...(facts.qr ? ["QR code"] : []),
-    ...(facts.events ? ["eventi"] : ["foto"]),
-  ];
+  const lodging = sectorOf(lead.category) === "alloggi";
+  const menuRelevant = !lodging && lead.category !== "Panificio";
+  const recommendedFeatures = lodging
+    ? ["foto", "posizione", "contatti"]
+    : [
+        menuRelevant ? "menu" : "foto",
+        ...(facts.qr ? ["QR code"] : []),
+        ...(facts.events ? ["eventi"] : ["foto"]),
+      ];
   return {
     lead: {
       name: lead.name,
       category: lead.category,
+      sector: lodging ? "alloggi" : "locali",
       city: lead.city,
       websiteStatus: lead.website_status,
       websiteQuality: lead.website_quality,
@@ -109,3 +114,12 @@ export function validateOutreachMessage(
     );
   return { valid: errors.length === 0, errors };
 }
+// How each recommended feature shows up in the text.
+export const featurePatterns: Record<string, RegExp> = {
+  "QR code": /\bqr\b/i,
+  menu: /men[uù]/i,
+  foto: /foto/i,
+  eventi: /event|serat/i,
+  posizione: /posizion|dintorni|vicin|dove siete|mappa|raggiunger/i,
+  contatti: /contatt|scriver|prenot|disponibilit/i,
+};

@@ -1,4 +1,5 @@
 import type { Preferences } from "../model";
+import type { Sector } from "../sector";
 import type { OutreachContext, senderReach } from "./index";
 
 // One instruction source: greetings, format and preferences must never compete.
@@ -8,31 +9,40 @@ export function outreachInstructions(
   context: OutreachContext,
   hasPrevious = false,
   distance: ReturnType<typeof senderReach> = { reach: "far", km: null },
+  sector: Sector = "locali",
 ) {
+  const lodging = sector === "alloggi";
+  const what = lodging
+    ? "siti web fatti su misura, anche per b&b e case vacanza"
+    : "siti web fatti su misura, specialmente per i locali";
   const name = prefs.sender_name.trim();
   const city = prefs.sender_city.trim();
   const local = prefs.local && !!city && distance.reach !== "far";
   const intro = !name
     ? "Non presentarti con un nome."
     : local && distance.reach === "same"
-      ? `Nella prima riga presentati con "mi chiamo ${name}", di' di cosa ti occupi (siti web fatti su misura, specialmente per i locali) e scrivi "abito anche io a ${city}". Non usare "sono ${name}, di ${city}".`
+      ? `Nella prima riga presentati con "mi chiamo ${name}", di' di cosa ti occupi (${what}) e scrivi "abito anche io a ${city}". Non usare "sono ${name}, di ${city}".`
       : local
-        ? `Nella prima riga presentati con "mi chiamo ${name}", di' di cosa ti occupi (siti web fatti su misura, specialmente per i locali) e di' che abiti a ${city}, qui vicino a voi. Non usare "sono ${name}, di ${city}".`
-        : `Nella prima riga presentati con "mi chiamo ${name}", di' di cosa ti occupi (siti web fatti su misura, specialmente per i locali) e non dire dove abiti.`;
+        ? `Nella prima riga presentati con "mi chiamo ${name}", di' di cosa ti occupi (${what}) e di' che abiti a ${city}, qui vicino a voi. Non usare "sono ${name}, di ${city}".`
+        : `Nella prima riga presentati con "mi chiamo ${name}", di' di cosa ti occupi (${what}) e non dire dove abiti.`;
   const zone = local
     ? 'Puoi dire che fai siti per locali "della zona".'
     : prefs.local && city
       ? `Il locale è lontano da ${city}${distance.km ? ` (circa ${distance.km} km)` : ""}: non dire che sei della zona, vicino o da quelle parti e non dire dove abiti.`
       : "Non dire di essere della zona.";
   return [
-    "reasonUsed deve essere il reasonKind fornito. featuresUsed contiene 2 o massimo 3 valori da recommendedFeatures realmente presenti nel messaggio. menuRelevant=true: devi nominare menu anche per gastronomia, gelateria e pasticceria; per pub puoi dire menu o menu drink. qrRelevant=true: includi naturalmente un QR ai tavoli che apre direttamente il menu. Usa i dati già raccolti, senza rifare analisi. Leggi validationFeedback e correggi tutti gli errori. Evita servizio, incrementare, potenziare, proposta commerciale, vi mando due idee. Non usare punto e virgola o due punti. Usa nome/categoria/città come contesto e soprattutto le osservazioni attribuite per scrivere proprio a questo locale. Non copiare i recentGeneratedMessages.",
+    `reasonUsed deve essere il reasonKind fornito. featuresUsed contiene 2 o massimo 3 valori da recommendedFeatures realmente presenti nel messaggio. ${lodging ? "Non nominare menu né QR." : "menuRelevant=true: devi nominare menu anche per gastronomia, gelateria e pasticceria; per pub puoi dire menu o menu drink. qrRelevant=true: includi naturalmente un QR ai tavoli che apre direttamente il menu."} Usa i dati già raccolti, senza rifare analisi. Leggi validationFeedback e correggi tutti gli errori. Evita servizio, incrementare, potenziare, proposta commerciale, vi mando due idee. Non usare punto e virgola o due punti. Usa nome/categoria/città come contesto e soprattutto le osservazioni attribuite per scrivere proprio a ${lodging ? "questa struttura" : "questo locale"}. Non copiare i recentGeneratedMessages.`,
     'Scrivi un DM italiano come lo scriverebbe di getto dal telefono una persona vera, tutto in minuscolo tranne i nomi propri, con parole semplici e nessun tono da agenzia. Il modello di voce da imitare è questo: "ciao buongiorno! mi chiamo Simone, sono di Vittoria, mi occupo nella realizzazione di siti web fatti su misura, specialmente per i locali. ho visto che non avete un sito (per lo meno, ho cercato, ma non ho trovato nulla) con il menu o le foto del mangiare che fate, vi potrebbe interessare crearne uno appositamente? magari con foto dei piatti, degli aperitivi e delle colazioni, foto del locale, la storia se volete". Quel testo mostra solo il tono: non copiarne le frasi e non riusare frasi fatte, scrivi ogni volta con parole tue partendo da quello che hai visto su questo locale. Restituisci l\'oggetto richiesto con message, reasonUsed, featuresUsed ed evidence_ids: usa solo i riferimenti brevi E1, E2 e simili che sostengono le osservazioni nel testo.',
     'Lunghezza 400–750 caratteri, massimo 900, in 5 righe separate da un singolo a capo, ogni riga al massimo 250 caratteri. Struttura: 1) saluto, chi sei e di cosa ti occupi, 2) cosa hai cercato su Google e cosa hai visto, col dubbio tra parentesi quando non sei sicuro, 3) perché un sito aiuta, 4) cosa metteresti dentro al sito, 5) domanda finale. Inizia con "ciao buongiorno!" oppure "ciao!", un solo punto esclamativo in tutto il messaggio. Non usare Ciao, come va?, salve, gentile, ho analizzato o ho notato che. Una emoji sorridente come 🙂 è gradita, massimo due in tutto.',
     `${intro} Solo il nome, mai il cognome.`,
     'Nella seconda riga di\' che hai visto il locale su Google, ad esempio "Ho visto il vostro locale su Google e..." o "Vi ho trovati su Google e...", poi racconta l\'osservazione. Se l\'osservazione viene da Facebook o Instagram, dillo esplicitamente: non far credere di averla vista su Google.',
-    "Nella terza riga spiega con parole tue perché un sito aiuterebbe proprio questo locale, collegandolo a quello che hai visto e alla categoria: chi li cerca dal telefono deve trovare subito quello che gli serve per sceglierli. Non usare la frase \"oggi la gente prima di uscire cerca dal telefono\" né altre formule sempre uguali, e non aprire la riga con \"per una pizzeria,\" o simili. Non promettere numeri, percentuali o risultati garantiti.",
-    "Nella quarta riga elenca in modo concreto cosa metteresti dentro al sito, scegliendo cose adatte a questo locale e alla sua categoria (ad esempio per una pizzeria le pizze e il forno, per un bar colazioni e aperitivi, per un pub drink e serate), e di' che lo fai su misura per loro. Non dire che il menu lo aggiornano da soli, non usare \"aggiornabile\" o \"in autonomia\".",
-    "Una sola osservazione concreta e un'idea collegata. Scrivi come in una conversazione, senza complimenti di circostanza, elenchi di funzionalità o frasi riempitive. Non fingere di essere cliente o di aver visitato il locale. Non scrivere mai il nome del locale nel messaggio, nemmeno nel saluto. Rivolgiti sempre a loro con voi e parla del vostro locale. Niente codici, UUID, ID o riferimenti E1/E2 nel testo: evidence_ids è l'unico campo per i riferimenti.",
+    lodging
+      ? "Nella terza riga spiega con parole tue perché un sito vostro aiuterebbe proprio questa struttura, collegandolo a quello che hai visto: chi cerca dove dormire guarda dal telefono, e con un sito vostro vede camere e posizione e può scrivervi o prenotare direttamente. Puoi dire in generale che così non si passa dalle commissioni dei portali, ma mai con percentuali o cifre. Non usare formule sempre uguali. Non promettere numeri o risultati garantiti."
+      : "Nella terza riga spiega con parole tue perché un sito aiuterebbe proprio questo locale, collegandolo a quello che hai visto e alla categoria: chi li cerca dal telefono deve trovare subito quello che gli serve per sceglierli. Non usare la frase \"oggi la gente prima di uscire cerca dal telefono\" né altre formule sempre uguali, e non aprire la riga con \"per una pizzeria,\" o simili. Non promettere numeri, percentuali o risultati garantiti.",
+    lodging
+      ? "Nella quarta riga elenca in modo concreto cosa metteresti dentro al sito per questa struttura, per esempio foto delle camere e degli spazi, la colazione se c'è, la posizione e cosa c'è vicino, i contatti diretti e un modo semplice per chiedere disponibilità, e di' che lo fai su misura per loro. Non dire che il sito lo aggiornano da soli, non usare \"aggiornabile\" o \"in autonomia\"."
+      : "Nella quarta riga elenca in modo concreto cosa metteresti dentro al sito, scegliendo cose adatte a questo locale e alla sua categoria (ad esempio per una pizzeria le pizze e il forno, per un bar colazioni e aperitivi, per un pub drink e serate), e di' che lo fai su misura per loro. Non dire che il menu lo aggiornano da soli, non usare \"aggiornabile\" o \"in autonomia\".",
+    `Una sola osservazione concreta e un'idea collegata. Scrivi come in una conversazione, senza complimenti di circostanza, elenchi di funzionalità o frasi riempitive. Non fingere di essere cliente o di aver visitato il posto. Non scrivere mai ${lodging ? "il nome della struttura" : "il nome del locale"} nel messaggio, nemmeno nel saluto. Rivolgiti sempre a loro con voi e parla ${lodging ? "della vostra struttura" : "del vostro locale"}. Niente codici, UUID, ID o riferimenti E1/E2 nel testo: evidence_ids è l'unico campo per i riferimenti.`,
     'Non usare frasi tecniche o da database come "nella scheda Google non è indicato un sito", "non risulta un sito web" o "il sito non è presente nella scheda". Non usare "sito semplice", "sito base" o "pagina semplice". Descrivi invece il valore concreto: sito vostro, sito fatto bene, menu, QR, foto e contatti tutti in un posto, oppure un sito più moderno e curato.',
     "Non parlare mai di recensioni, stelle, rating, reputazione o popolarità. Non dedurre che il locale sia apprezzato, conosciuto o considerato. Evita anche segno che, vale la pena, potrebbe essere comodo, potrebbe essere utile, avere un posto dove, punto di riferimento, valorizzare, presenza online, soluzione, esperienza digitale, opportunità, clientela, professionale, ottimizzare, senza impegno e con calma.",
     `Tono ${prefs.tone}: ${prefs.tone === "neutro" ? "frasi semplici e cortesi, senza slang" : prefs.tone === "molto casual" ? "diretto e colloquiale, senza slang forzato" : "informale, amichevole e curato"}. ${zone}`,
@@ -51,7 +61,7 @@ export function outreachInstructions(
     prefs.free_demo
       ? "Una demo gratuita è consentita, non obbligatoria."
       : "Non offrire demo, bozze, prove o lavoro gratuito.",
-    "Non proporre prenotazioni online. Punteggiatura poca e naturale, come un messaggio scritto di getto su WhatsApp da una persona simpatica e alla mano, non da un'agenzia: qualche virgola dove viene spontanea (massimo 8), al massimo un punto dentro il messaggio, nessun punto a fine riga. Meglio legare le frasi con e, poi, così che spezzarle con tanti punti.",
+    `${lodging ? "Per una struttura puoi proporre che i clienti vi scrivano o prenotino direttamente dal sito." : "Non proporre prenotazioni online."} Punteggiatura poca e naturale, come un messaggio scritto di getto su WhatsApp da una persona simpatica e alla mano, non da un'agenzia: qualche virgola dove viene spontanea (massimo 8), al massimo un punto dentro il messaggio, nessun punto a fine riga. Meglio legare le frasi con e, poi, così che spezzarle con tanti punti.`,
     'Chiudi con una domanda semplice e breve, scritta con parole tue, come "vi interesserebbe?" o "che ne pensate?". Non usare "ti va di parlarne?", "se vi va ne parliamo", "possiamo sentirci", "resto a disposizione" o "senza impegno".',
     hasPrevious || attempt
       ? "Genera una nuova versione sostanzialmente diversa. Non limitarti a cambiare la CTA. Cambia anche la costruzione delle frasi e il modo in cui presenti il problema e il perché del sito. Mantieni però gli stessi fatti verificati e la stessa presentazione."

@@ -17,8 +17,10 @@ import {
 } from "../messaging";
 import {
   buildMessagePayload,
+  featurePatterns,
   validateOutreachMessage,
 } from "../messaging/validation";
+import { sectorOf } from "../sector";
 import { outreachInstructions } from "../messaging/prompt";
 const client = () =>
   new OpenAI({
@@ -257,6 +259,7 @@ export async function generateOutreachMessage(
               context,
               !!previousMessage,
               senderReach(lead, prefs),
+              sectorOf(lead.category),
             ),
             feedback.length
               ? `CORREGGI la bozza precedente. Questi errori l'hanno fatta scartare: ${feedback.join("; ")}`
@@ -304,18 +307,9 @@ export async function generateOutreachMessage(
         feedback.push(
           "reasonUsed deve essere reasonKind e featuresUsed deve usare recommendedFeatures",
         );
-      for (const feature of parsed.featuresUsed) {
-        const pattern =
-          feature === "QR code"
-            ? /\bqr\b/i
-            : feature === "menu"
-              ? /men[u\u00f9]/i
-              : feature === "foto"
-                ? /foto/i
-                : /event|serat/i;
-        if (!pattern.test(parsed.message))
+      for (const feature of parsed.featuresUsed)
+        if (!featurePatterns[feature]?.test(parsed.message))
           feedback.push("featuresUsed non corrisponde al testo");
-      }
       if (feedback.length) {
         console.warn("[AI] message rejected", {
           id: lead.id,

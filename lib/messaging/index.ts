@@ -1,5 +1,8 @@
 import { contactable, type Lead, type Preferences } from "../model";
 import { websiteFailureEvidence } from "../website-evidence";
+import { sectorOf } from "../sector";
+import { portalFromText } from "../utils";
+import { lodgingLines } from "./lodging";
 export type ContactReasonKind =
   | "no_website"
   | "social_only"
@@ -9,7 +12,8 @@ export type ContactReasonKind =
   | "menu_ads"
   | "instagram_menu_only"
   | "good_socials_bad_web"
-  | "events_no_website";
+  | "events_no_website"
+  | "portal_only";
 export type OutreachAttribution = {
   id: string;
   text: string;
@@ -54,6 +58,7 @@ export function messageFacts(l: Lead, p: Preferences) {
     "Altro food",
   ].includes(l.category);
   const unavailable = !!websiteFailureEvidence(l);
+  const lodging = sectorOf(l.category) === "alloggi";
   return {
     unavailable,
     own: l.website_status === "own_website" || l.website_status === "broken",
@@ -68,10 +73,11 @@ export function messageFacts(l: Lead, p: Preferences) {
     sparse: has("sparse"),
     poor: l.website_quality === "poor" && has("weak_website"),
     ads: has("menu_ads"),
-    events: p.events && l.analysis.events_relevant && has("events"),
+    events: !lodging && p.events && l.analysis.events_relevant && has("events"),
     products,
+    lodging,
     drinks: ["Pub", "Cocktail bar"].includes(l.category),
-    qr: p.qr && !products,
+    qr: p.qr && !products && !lodging,
   };
 }
 
@@ -85,8 +91,10 @@ export function buildOutreachContext(
     (e) => e.confidence >= 0.7 && !!e.url,
   );
   const first = (kind: string) => evidence.find((e) => e.kind === kind);
+  const lodging = sectorOf(lead.category) === "alloggi";
+  const place = lodging ? "della struttura" : "del locale";
   const unavailable = websiteFailureEvidence(lead);
-  const ads = first("menu_ads");
+  const ads = lodging ? undefined : first("menu_ads");
   const weak = first("weak_website");
   const wordCount =
     lead.analysis.features?.word_count ??
@@ -106,7 +114,7 @@ export function buildOutreachContext(
       ? first("website_missing")
       : undefined;
   const events =
-    prefs.events && lead.analysis.events_relevant ? first("events") : undefined;
+    !lodging && prefs.events && lead.analysis.events_relevant ? first("events") : undefined;
   const curated = first("curated_social");
   const menuSource = lead.menu_url
     ? lead.sources.find(
@@ -156,7 +164,11 @@ export function buildOutreachContext(
     reasonKind = "poor_website";
     contactReason = "il sito esiste ma appare poco moderno e poco curato";
     addAttributions(visualWeak);
-  } else if (lead.menu_status === "instagram_only" && menuSource) {
+  } else if (
+    !lodging &&
+    lead.menu_status === "instagram_only" &&
+    menuSource
+  ) {
     reasonKind = "instagram_menu_only";
     contactReason = "il menu è disponibile principalmente tramite Instagram";
     chosen.push({
@@ -166,14 +178,16 @@ export function buildOutreachContext(
       confidence: menuSource.confidence,
     });
   } else if (noWebsite?.text.startsWith(platformPrefix)) {
-    // Google lists a Facebook/Instagram page (or similar) as the website.
-    reasonKind = "social_only";
-    contactReason = `su Google come sito del locale c'è ${noWebsite.text.slice(platformPrefix.length).trim()}`;
+    // Google lists a social page or a booking portal as the website.
+    const portal = lodging ? portalFromText(noWebsite.text) : "";
+    reasonKind = portal ? "portal_only" : "social_only";
+    contactReason = portal
+      ? `su Google come sito c'è solo la pagina ${portal}`
+      : `su Google come sito ${place} c'è ${noWebsite.text.slice(platformPrefix.length).trim()}`;
     addAttributions(noWebsite);
   } else if (noWebsite) {
     reasonKind = "no_website";
-    contactReason =
-      "cercando su Google non ho trovato un sito ufficiale del locale";
+    contactReason = `cercando su Google non ho trovato un sito ufficiale ${place}`;
     addAttributions(noWebsite);
   } else if (websiteMissing) {
     reasonKind = "no_website";
@@ -192,34 +206,26 @@ export function buildOutreachContext(
       suggestedFeatures: [],
       attributions: [],
     };
-  const menuFeature =
-    lead.category === "Cocktail bar" || lead.category === "Pub"
-      ? "drink list"
-      : [
-            "Panificio",
-            "Pasticceria",
-            "Gastronomia",
-            "Gelateria",
-            "Rosticceria",
-            "Altro food",
-          ].includes(lead.category)
-        ? "prodotti foto e contatti"
-        : "menu";
-  const suggestedFeatures = [menuFeature, "foto e contatti"];
-  if (
-    prefs.qr &&
-    ![
-      "Panificio",
-      "Pasticceria",
-      "Gastronomia",
-      "Gelateria",
-      "Rosticceria",
-      "Altro food",
-    ].includes(lead.category)
-  )
-    suggestedFeatures.push("QR code");
-  if (reasonKind === "events_no_website")
-    suggestedFeatures.unshift("spazio per serate ed eventi");
+  const suggestedFeatures: string[] = [];
+  if (lodging)
+    suggestedFeatures.push(
+      "foto delle camere e degli spazi",
+      "posizione e dintorni",
+      "contatti diretti",
+    );
+  else {
+    const menuFeature =
+      lead.category === "Cocktail bar" || lead.category === "Pub"
+        ? "drink list"
+        : productCategories.includes(lead.category)
+          ? "prodotti foto e contatti"
+          : "menu";
+    suggestedFeatures.push(menuFeature, "foto e contatti");
+    if (prefs.qr && !productCategories.includes(lead.category))
+      suggestedFeatures.push("QR code");
+    if (reasonKind === "events_no_website")
+      suggestedFeatures.unshift("spazio per serate ed eventi");
+  }
   return {
     status: "ready",
     reasonKind,
@@ -297,12 +303,24 @@ export function senderIntro(l: Lead, p: Preferences, variant = 0) {
         ? ` e abito anche io a ${city}`
         : ` e abito a ${city} qui vicino a voi`;
   const local = localClaims(l, p) ? " della zona" : "";
+  const target =
+    sectorOf(l.category) === "alloggi"
+      ? [
+          "anche per b&b e case vacanza",
+          "soprattutto per b&b e case vacanza",
+          "per b&b e case vacanza",
+        ]
+      : [
+          "specialmente per i locali",
+          "soprattutto per i locali",
+          "per bar e ristoranti",
+        ];
   const line = !name
-    ? `ciao buongiorno! mi occupo della realizzazione di siti web fatti su misura, specialmente per i locali${local}`
+    ? `ciao buongiorno! mi occupo della realizzazione di siti web fatti su misura, ${target[0]}${local}`
     : [
-        `ciao buongiorno! mi chiamo ${name}${from}, mi occupo della realizzazione di siti web fatti su misura, specialmente per i locali${local}`,
-        `ciao! mi chiamo ${name}${from} e faccio siti web su misura, soprattutto per i locali${local}`,
-        `ciao buongiorno! mi chiamo ${name}${from}, faccio siti web fatti su misura per bar e ristoranti${local}`,
+        `ciao buongiorno! mi chiamo ${name}${from}, mi occupo della realizzazione di siti web fatti su misura, ${target[0]}${local}`,
+        `ciao! mi chiamo ${name}${from} e faccio siti web su misura, ${target[1]}${local}`,
+        `ciao buongiorno! mi chiamo ${name}${from}, faccio siti web fatti su misura ${target[2]}${local}`,
       ][variant % 3];
   // A neutral tone keeps the same words without the chatty opening.
   return p.tone === "neutro"
@@ -318,6 +336,22 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
   const context = buildOutreachContext(l, p);
   if (context.status !== "ready" || !context.reasonKind) return "";
   const variant = ((index % 60) + 60) % 60;
+  if (sectorOf(l.category) === "alloggi") {
+    const lines = lodgingLines(
+      context.reasonKind,
+      context.contactReason,
+      variant,
+    );
+    return lines
+      ? [
+          senderIntro(l, p, variant),
+          lines.observation,
+          lines.why,
+          lines.pitch,
+          lines.cta,
+        ].join("\n")
+      : "";
+  }
   const isProduct = productCategories.includes(l.category);
   const menu = ["Pub", "Cocktail bar"].includes(l.category)
     ? "menu drink"
@@ -343,7 +377,7 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
     `lo costruiamo insieme come lo volete voi, con ${photos}, ${theMenu} e le foto del locale`,
   ];
   const copy: Record<
-    ContactReasonKind,
+    Exclude<ContactReasonKind, "portal_only">,
     { observations: string[]; pitches: string[] }
   > = {
     no_website: {
@@ -447,7 +481,8 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
       ],
     },
   };
-  const selected = copy[context.reasonKind];
+  const selected =
+    copy[context.reasonKind as Exclude<ContactReasonKind, "portal_only">];
   // Why a site matters, in plain words and without promising numbers.
   const why = pick(
     [
@@ -506,7 +541,9 @@ const reasonPatterns: Record<ContactReasonKind, RegExp> = {
   good_socials_bad_web:
     /(?:pagina|foto|social)[\s\S]{0,150}(?:curat|foto sono)[\s\S]{0,150}(?:sito|menu)/i,
   social_only:
-    /sito[\s\S]{0,120}(?:facebook|instagram|tiktok|linktree|piattaforma esterna|pagina social)/i,
+    /sito[\s\S]{0,120}(?:facebook|instagram|tiktok|linktree|piattaforma esterna|pagina social|booking|airbnb|tripadvisor|expedia|vrbo|agoda|subito)/i,
+  portal_only:
+    /(?:sito[\s\S]{0,160}(?:booking|airbnb|vrbo|expedia|hotels\.com|agoda|tripadvisor|subito|casevacanza))|(?:(?:booking|airbnb|vrbo|expedia|hotels\.com|agoda|tripadvisor|subito|casevacanza)[\s\S]{0,160}sito)/i,
   events_no_website: /(?:serat|event)[\s\S]{0,170}(?:social|sito|spazio)/i,
 };
 // Every rule the message breaks, in words the model can act on when it retries.
@@ -559,9 +596,20 @@ export function messageProblems(
     "Apertura non consentita",
   );
   const banned = trimmed.match(
-    /nella scheda Google non è indicato un sito|non risulta (?:un )?sito(?: web)?|il sito non è presente nella scheda|sito semplice|sito base|pagina semplice|recension|stelle su google|rating|segno che|considerat|apprezzat|reputazion|punto di riferimento|valorizzare|presenza online|esperienza digitale|\bsoluzione\b|opportunità|\bclientela\b|\bprofessionale\b|ottimizzare|senza impegno|con calma|rendere tutto più comodo|val(?:e|ere) la pena|potrebbe essere (?:comodo|utile)|avere un posto dove|prenotazion|gentile attività|le scrivo per proporle|leader nel settore|soluzioni digitali|potenziare.*business|massimizzare|incrementare.*presenza online|vi scrivo per il vostro sito|posso aiutarvi ad aggiornarlo|potrebbe servirvi un sito|darvi una mano col sito/i,
+    /nella scheda Google non è indicato un sito|non risulta (?:un )?sito(?: web)?|il sito non è presente nella scheda|sito semplice|sito base|pagina semplice|recension|stelle su google|rating|segno che|considerat|apprezzat|reputazion|punto di riferimento|valorizzare|presenza online|esperienza digitale|\bsoluzione\b|opportunità|\bclientela\b|\bprofessionale\b|ottimizzare|senza impegno|con calma|rendere tutto più comodo|val(?:e|ere) la pena|potrebbe essere (?:comodo|utile)|avere un posto dove|gentile attività|le scrivo per proporle|leader nel settore|soluzioni digitali|potenziare.*business|massimizzare|incrementare.*presenza online|vi scrivo per il vostro sito|posso aiutarvi ad aggiornarlo|potrebbe servirvi un sito|darvi una mano col sito/i,
   );
   fail(!!banned, `Espressione vietata: "${banned?.[0]}"`);
+  // Direct booking is the point of a site for lodging, never for food venues.
+  fail(
+    sectorOf(lead.category) !== "alloggi" && /prenotazion/i.test(trimmed),
+    'Espressione vietata: "prenotazion"',
+  );
+  fail(
+    /commission[^\n]{0,60}\d|\d[^\n]{0,30}commission|commission[^\n]{0,60}per ?cento/i.test(
+      trimmed,
+    ),
+    "Non dare cifre o percentuali sulle commissioni",
+  );
   const lines = trimmed.split(/\n/).filter((line) => line.trim());
   fail(
     lines.length < 3 || lines.length > 7,

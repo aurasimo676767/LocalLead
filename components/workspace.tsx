@@ -64,8 +64,13 @@ export function WorkspaceProvider({
   const [error, setError] = useState("");
   const [notice, notify] = useState("");
   const replace = useCallback((s: Workspace) => {
-    ref.current = s;
-    setState(s);
+    // Scores are recomputed from saved data, so rule changes need no new analysis.
+    const next = {
+      ...s,
+      leads: s.leads.map((l) => scoreLead(l, s.preferences)),
+    };
+    ref.current = next;
+    setState(next);
   }, []);
   const reload = useCallback(async () => {
     const version = ++requestVersion.current;

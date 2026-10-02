@@ -25,7 +25,7 @@ import { Score, Status, ErrorText, Field } from "./ui";
 import { LeadForm } from "./lead-form";
 import { SiteAuditPanel } from "./site-audit";
 import { statuses, statusLabels, contactable, type Lead } from "@/lib/model";
-import { hotReasons, worthwhile } from "@/lib/scoring";
+import { hotReasons, scoreParts, worthwhile } from "@/lib/scoring";
 import { buildOutreachContext, fallbackMessage } from "@/lib/messaging";
 import { safeUrl, whatsappUrl, whatsappCheckUrl } from "@/lib/utils";
 const labels: Record<string, string> = {
@@ -408,8 +408,14 @@ function Detail({ lead: l, scan }: { lead: Lead; scan?: boolean }) {
             <details>
               <summary>Come viene calcolato lo score</summary>
               <p className="muted">
-                Base: 20 punti. Solo evidenze con confidence ≥ 70%. Risultato
-                limitato a 0–100.
+                Bisogno {scoreParts(l).need} · Raggiungibilità{" "}
+                {scoreParts(l).reach} · Attività {scoreParts(l).activity}
+                {scoreParts(l).penalty
+                  ? ` · Penalità ${scoreParts(l).penalty}`
+                  : ""}{" "}
+                = {l.lead_score}. Conta solo il bisogno più forte; contatti e
+                attività contano solo se c’è un bisogno verificato. Solo
+                evidenze con confidence ≥ 70%.
               </p>
               {l.analysis.reasons.map((r, i) => (
                 <div className="score-breakdown" key={i}>

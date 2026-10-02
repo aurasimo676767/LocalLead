@@ -108,6 +108,8 @@ export type ScoreReason = {
   label: string;
   points: number;
   evidence_ids: string[];
+  // Which part of the score: need for a site, reachability, signs of activity.
+  group?: "need" | "reach" | "activity" | "penalty";
 };
 export type HtmlFeatures = {
   title: string;

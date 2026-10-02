@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   ScanSearch,
   Users,
+  BedDouble,
   Send,
   Phone,
   Archive,
@@ -21,11 +22,14 @@ import {
 } from "lucide-react";
 import { useWorkspace } from "./workspace";
 import { Logo } from "./logo";
+import { activeNav } from "@/lib/lead-views";
+import { inSector } from "@/lib/sector";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 const nav = [
   ["/dashboard", "Dashboard", LayoutDashboard],
   ["/discover", "Trova lead", ScanSearch],
   ["/leads", "Lead", Users],
+  ["/alloggi", "Alloggi", BedDouble],
   ["/contacted", "Contattati", Send],
   ["/numero", "Cerca numero", Phone],
   ["/archive", "Archivio", Archive],
@@ -45,6 +49,11 @@ export function Shell({
   const [open, setOpen] = useState(false);
   const sidebar = useRef<HTMLElement>(null);
   const closeMenu = useCallback(() => setOpen(false), []);
+  const active = activeNav(path, leads);
+  const counts = {
+    locali: leads.filter(inSector("locali")).length,
+    alloggi: leads.filter(inSector("alloggi")).length,
+  };
   useOverlay(open, sidebar, closeMenu);
   useEffect(() => {
     const desktop = window.matchMedia("(min-width: 721px)");
@@ -115,23 +124,16 @@ export function Shell({
               onClick={() => setOpen(false)}
               key={href}
               href={href}
-              aria-current={
-                path === href ||
-                (href === "/leads" && path.startsWith("/leads/"))
-                  ? "page"
-                  : undefined
-              }
-              className={
-                path === href ||
-                (href === "/leads" && path.startsWith("/leads/"))
-                  ? "nav-link active"
-                  : "nav-link"
-              }
+              aria-current={active === href ? "page" : undefined}
+              className={active === href ? "nav-link active" : "nav-link"}
             >
               <Icon size={19} />
               {label}
-              {href === "/leads" && leads.length > 0 && (
-                <span className="nav-count">{leads.length}</span>
+              {href === "/leads" && counts.locali > 0 && (
+                <span className="nav-count">{counts.locali}</span>
+              )}
+              {href === "/alloggi" && counts.alloggi > 0 && (
+                <span className="nav-count">{counts.alloggi}</span>
               )}
             </Link>
           ))}

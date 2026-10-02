@@ -1625,7 +1625,9 @@ summary {
   margin: 0 -2px 18px;
   scrollbar-width: thin;
 }
-.city-tabs button {
+.city-tabs button,
+.city-tabs a {
+  text-decoration: none;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1637,20 +1639,24 @@ summary {
   padding: 8px 14px;
   font-size: 14px;
 }
-.city-tabs button span {
+.city-tabs button span,
+.city-tabs a span {
   font-size: 13px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.city-tabs button:hover {
+.city-tabs button:hover,
+.city-tabs a:hover {
   border-color: var(--accent);
 }
-.city-tabs button.active {
+.city-tabs button.active,
+.city-tabs a.active {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--surface);
 }
-.city-tabs button.active span {
+.city-tabs button.active span,
+.city-tabs a.active span {
   color: inherit;
   opacity: 0.75;
 }

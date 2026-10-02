@@ -6,11 +6,15 @@ import { ScanSearch, MapPin, ArrowRight, Check } from "lucide-react";
 import { useWorkspace, useTask } from "./workspace";
 import { saveScanBatch } from "./scan-batch";
 import { PageHeading, Field, ErrorText, Score, Status } from "./ui";
-import { categories, contactable, type Lead } from "@/lib/model";
+import { contactable, type Lead } from "@/lib/model";
+import { inSector, sectorCategories, type Sector } from "@/lib/sector";
 import { fitsFilter } from "@/lib/scoring";
 import { buildOutreachContext } from "@/lib/messaging";
-export function Discover() {
+export function Discover({ sector = "locali" }: { sector?: Sector }) {
   const { command, config, leads, preferences } = useWorkspace();
+  const lodging = sector === "alloggi";
+  const noun = lodging ? "alloggi" : "locali";
+  const options = sectorCategories(sector);
   const task = useTask();
   const params = useSearchParams();
   const [city, setCity] = useState(
@@ -19,6 +23,7 @@ export function Discover() {
   // Cities already in the workspace: a new search there only adds new places.
   const searched = [
     ...leads
+      .filter(inSector(sector))
       .reduce((map, l) => {
         const key = l.city.trim().toLocaleLowerCase("it");
         if (key)
@@ -31,12 +36,11 @@ export function Discover() {
       .values(),
   ].sort((a, b) => b.count - a.count);
   const [skipped, setSkipped] = useState(0);
-  const [selected, setSelected] = useState<Lead["category"][]>([
-    "Pizzeria",
-    "Bar",
-    "Panineria",
-    "Pasticceria",
-  ]);
+  const [selected, setSelected] = useState<Lead["category"][]>(
+    lodging
+      ? ["B&B", "Casa vacanza"]
+      : ["Pizzeria", "Bar", "Panineria", "Pasticceria"],
+  );
   const [limit, setLimit] = useState(30);
   const [filter, setFilter] = useState("all");
   const [results, setResults] = useState<
@@ -108,8 +112,12 @@ export function Discover() {
   return (
     <>
       <PageHeading
-        title="Il prossimo buon lead."
-        description="Scegli una zona. Trova le attività con un’opportunità concreta."
+        title={lodging ? "La prossima struttura." : "Il prossimo buon lead."}
+        description={
+          lodging
+            ? "Scegli una zona. Trova B&B e case vacanza senza un sito tutto loro."
+            : "Scegli una zona. Trova le attività con un’opportunità concreta."
+        }
       />
       <div className="discover-layout">
         <form
@@ -125,7 +133,7 @@ export function Discover() {
           </div>
           <Field
             label="Città"
-            hint="I locali che hai già trovato qui vengono saltati: la ricerca aggiunge solo quelli nuovi."
+            hint={`${lodging ? "Gli alloggi" : "I locali"} che hai già trovato qui vengono saltati: la ricerca aggiunge solo quelli nuovi.`}
           >
             <div className="input-icon">
               <MapPin size={17} />
@@ -155,7 +163,7 @@ export function Discover() {
           <fieldset>
             <legend>Categorie</legend>
             <div className="category-grid">
-              {categories.map((c) => (
+              {options.map((c) => (
                 <label
                   className={`category-option ${selected.includes(c) ? "selected" : ""}`}
                   key={c}
@@ -208,7 +216,7 @@ export function Discover() {
             ) : (
               <ScanSearch size={17} />
             )}{" "}
-            {task.busy ? "Ricerca in corso…" : "Cerca locali nuovi"}
+            {task.busy ? "Ricerca in corso…" : `Cerca ${noun} nuovi`}
             <ArrowRight size={17} />
           </button>
           <small className="muted">
@@ -255,8 +263,10 @@ export function Discover() {
                 {task.busy
                   ? progress
                   : visible?.length === 1
-                    ? "1 locale nuovo"
-                    : `${visible?.length || 0} locali nuovi`}
+                    ? lodging
+                      ? "1 alloggio nuovo"
+                      : "1 locale nuovo"
+                    : `${visible?.length || 0} ${noun} nuovi`}
               </h2>
               <p>
                 {skipped > 0

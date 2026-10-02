@@ -14,7 +14,6 @@ import { useWorkspace, useTask } from "./workspace";
 import { useOverlay } from "./use-overlay";
 import { PageHeading, LeadTable, Field, ErrorText } from "./ui";
 import {
-  categories,
   statuses,
   statusLabels,
   contacted,
@@ -22,15 +21,21 @@ import {
   deletable,
   type Lead,
 } from "@/lib/model";
-import { isLandlinePhone } from "@/lib/utils";
+import { pageLeads, type ListMode } from "@/lib/lead-views";
+import { sectorCategories, type Sector } from "@/lib/sector";
 import { fitsFilter } from "@/lib/scoring";
 import { buildOutreachContext } from "@/lib/messaging";
 const cityKey = (city: string) => city.trim().toLocaleLowerCase("it");
 export function LeadList({
   mode = "all",
+  sector = "locali",
 }: {
-  mode?: "all" | "contacted" | "archive";
+  mode?: ListMode;
+  sector?: Sector;
 }) {
+  const lodging = sector === "alloggi";
+  const noun = lodging ? ["alloggio", "alloggi"] : ["locale", "locali"];
+  const findHref = lodging ? "/alloggi/cerca" : "/discover";
   const { leads, preferences, command, notify } = useWorkspace();
   const drafts = useTask();
   const [drafted, setDrafted] = useState("");
@@ -46,23 +51,7 @@ export function LeadList({
   const [more, setMore] = useState(false);
   const [confirm, setConfirm] = useState<Lead[] | null>(null);
   // What belongs on this page, before any filter the user picks.
-  const inMode = leads.filter(
-    (l) =>
-      !isLandlinePhone(l.phone) &&
-      (mode !== "all" ||
-        ((!contacted(l) || contact === "yes") &&
-          !l.do_not_contact &&
-          ![
-            "archived",
-            "bad_lead",
-            "not_interested",
-            "replied_negative",
-          ].includes(l.status))) &&
-      (mode !== "contacted" || contacted(l)) &&
-      (mode !== "archive" ||
-        l.do_not_contact ||
-        ["archived", "bad_lead", "not_interested"].includes(l.status)),
-  );
+  const inMode = pageLeads(leads, mode, sector, contact === "yes");
   const cities = [
     ...inMode
       .reduce((map, l) => {
@@ -93,7 +82,9 @@ export function LeadList({
               )
             : channel === "facebook"
               ? !!l.facebook_url
-              : l.menu_status === "external_platform")) &&
+              : channel === "instagram"
+                ? !!l.instagram_url
+                : l.menu_status === "external_platform")) &&
         (!contact || (contact === "yes" ? contacted(l) : !contacted(l))),
     )
     .sort((a, b) =>
@@ -125,15 +116,19 @@ export function LeadList({
             ? "Conversazioni iniziate."
             : mode === "archive"
               ? "Il tuo archivio."
-              : "Tutti i tuoi lead."
+              : lodging
+                ? "I tuoi alloggi."
+                : "Tutti i tuoi lead."
         }
         description={
           mode === "all"
-            ? "I locali trovati, divisi per città."
+            ? lodging
+              ? "B&B e case vacanza trovati, divisi per città."
+              : "I locali trovati, divisi per città."
             : "Ogni attività, le sue evidenze e il prossimo passo."
         }
       >
-        {mode === "all" && (
+        {mode === "all" && !lodging && (
           <>
             <Link className="button secondary" href="/leads/import">
               <Upload size={16} /> Importa CSV
@@ -167,7 +162,7 @@ export function LeadList({
           <div>
             <h2>{activeCity ? activeCity.name : "Tutte le città"}</h2>
             <p>
-              {inCity.length} {inCity.length === 1 ? "locale" : "locali"} da
+              {inCity.length} {inCity.length === 1 ? noun[0] : noun[1]} da
               lavorare, {withoutSite} senza sito
             </p>
           </div>
@@ -176,14 +171,14 @@ export function LeadList({
               className="button"
               href={
                 activeCity
-                  ? `/discover?city=${encodeURIComponent(activeCity.name)}`
-                  : "/discover"
+                  ? `${findHref}?city=${encodeURIComponent(activeCity.name)}`
+                  : findHref
               }
             >
               <ScanSearch size={16} />
               {activeCity
-                ? `Trova altri locali a ${activeCity.name}`
-                : "Trova altri locali"}
+                ? `Trova altri ${noun[1]} a ${activeCity.name}`
+                : `Trova altri ${noun[1]}`}
             </Link>
             {pending.length > 0 && (
               <button
@@ -277,7 +272,7 @@ export function LeadList({
                   onChange={(e) => setCategory(e.target.value)}
                 >
                   <option value="">Tutte</option>
-                  {categories.map((c) => (
+                  {sectorCategories(sector).map((c) => (
                     <option key={c}>{c}</option>
                   ))}
                 </select>
@@ -315,7 +310,8 @@ export function LeadList({
                   <option value="">Tutti</option>
                   <option value="whatsapp">Con WhatsApp</option>
                   <option value="facebook">Con Facebook</option>
-                  <option value="menu">Menu esterno</option>
+                  <option value="instagram">Con Instagram</option>
+                  {!lodging && <option value="menu">Menu esterno</option>}
                 </select>
               </Field>
               {mode !== "contacted" && (
@@ -339,9 +335,9 @@ export function LeadList({
       )}
       {!inMode.length && mode === "all" ? (
         <div className="panel empty-state">
-          Nessun locale da lavorare.
-          <Link className="button" href="/discover">
-            <ScanSearch size={16} /> Trova locali nuovi
+          Nessun {noun[0]} da lavorare.
+          <Link className="button" href={findHref}>
+            <ScanSearch size={16} /> Trova {noun[1]} nuovi
           </Link>
         </div>
       ) : (

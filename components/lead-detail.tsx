@@ -26,6 +26,8 @@ import { LeadForm } from "./lead-form";
 import { SiteAuditPanel } from "./site-audit";
 import { statuses, statusLabels, contactable, type Lead } from "@/lib/model";
 import { hotReasons, scoreParts, worthwhile } from "@/lib/scoring";
+import { detailQueue, sectorHome } from "@/lib/lead-views";
+import { sectorOf } from "@/lib/sector";
 import { buildOutreachContext, fallbackMessage } from "@/lib/messaging";
 import { safeUrl, whatsappUrl, whatsappCheckUrl } from "@/lib/utils";
 const labels: Record<string, string> = {
@@ -126,21 +128,11 @@ function Detail({ lead: l, scan }: { lead: Lead; scan?: boolean }) {
     !!whatsappCheckUrl(l, contactDraft) &&
     !l.is_demo;
   const hasFb = !blocked && !!l.facebook_url && !l.is_demo;
-  const open = (item: Lead) =>
-    !item.do_not_contact &&
-    !["archived", "bad_lead", "not_interested"].includes(item.status);
-  // Opened from a discovery search: step through that search's results, in
-  // their order, and nothing else. The lead list reorders as leads change, so
-  // the current lead keeps its place even after it is contacted or archived.
-  const scanned =
-    scan && batch?.includes(l.id)
-      ? batch.map((id) => leads.find((item) => item.id === id))
-      : undefined;
-  const navigable = scanned
-    ? scanned.filter(
-        (item): item is Lead => !!item && (item.id === l.id || open(item)),
-      )
-    : leads.filter(open);
+  const sector = sectorOf(l.category);
+  // Opened from a discovery search the arrows follow that search's order; the
+  // current lead keeps its place after it is contacted. Never another sector.
+  const scanned = !!scan && !!batch?.includes(l.id);
+  const navigable = detailQueue(l, leads, (scan && batch) || undefined);
   const position = navigable.findIndex((item) => item.id === l.id);
   const previous = position > 0 ? navigable[position - 1] : undefined;
   const next =
@@ -160,8 +152,9 @@ function Detail({ lead: l, scan }: { lead: Lead; scan?: boolean }) {
   return (
     <>
       <div className="detail-nav">
-        <Link href="/leads" className="back-link">
-          <ArrowLeft size={15} /> <span>Tutti i lead</span>
+        <Link href={sectorHome(sector)} className="back-link">
+          <ArrowLeft size={15} />{" "}
+          <span>{sector === "alloggi" ? "Tutti gli alloggi" : "Tutti i lead"}</span>
         </Link>
         <div className="detail-nav-actions">
           {position >= 0 && (

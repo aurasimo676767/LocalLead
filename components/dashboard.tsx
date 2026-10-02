@@ -5,8 +5,11 @@ import { useWorkspace } from "./workspace";
 import { PageHeading, LeadRow, LeadTable } from "./ui";
 import { contactable, contacted } from "@/lib/model";
 import { isLandlinePhone } from "@/lib/utils";
+import { inSector } from "@/lib/sector";
 export function Dashboard() {
-  const { leads } = useWorkspace();
+  const { leads: all } = useWorkspace();
+  // The dashboard is about venues; lodging has its own section.
+  const leads = all.filter(inSector("locali"));
   const available = leads.filter(
     (l) => !isLandlinePhone(l.phone) && contactable(l) && !contacted(l),
   );

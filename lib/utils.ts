@@ -163,6 +163,16 @@ export function whatsappUrl(lead: Lead, message: string) {
     return "";
   return chatUrl(number, message);
 }
+/** The profile to open after copying a draft: never for demo or excluded leads. */
+export function instagramUrl(lead: Lead) {
+  const url = safeUrl(lead.instagram_url);
+  return url &&
+    hostIs(url, "instagram.com") &&
+    contactable(lead) &&
+    !lead.is_demo
+    ? url
+    : "";
+}
 export function whatsappCheckUrl(lead: Lead, message: string) {
   const number = normalizePhone(lead.phone);
   if (!number || isLandlinePhone(number) || !contactable(lead)) return "";

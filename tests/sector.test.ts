@@ -5,7 +5,12 @@ import {
   sectorCategories,
   isLodging,
 } from "@/lib/sector";
-import { dedupKeys, portalName, portalFromText } from "@/lib/utils";
+import {
+  dedupKeys,
+  instagramUrl,
+  portalName,
+  portalFromText,
+} from "@/lib/utils";
 import { newLead } from "@/lib/model";
 
 describe("sector", () => {
@@ -75,5 +80,24 @@ describe("portals", () => {
     });
     expect(dedupKeys(a).some((k) => k.startsWith("domain:"))).toBe(false);
     expect(dedupKeys(a).filter((k) => dedupKeys(b).includes(k))).toEqual([]);
+  });
+});
+
+describe("instagram link", () => {
+  const lead = (extra = {}) =>
+    newLead({
+      name: "Casa Sole",
+      city: "Vittoria",
+      category: "B&B",
+      instagram_url: "https://www.instagram.com/casasole",
+      ...extra,
+    });
+  it("opens a real profile only", () => {
+    expect(instagramUrl(lead())).toBe("https://www.instagram.com/casasole");
+    expect(instagramUrl(lead({ instagram_url: "https://evil.com/x" }))).toBe(
+      "",
+    );
+    expect(instagramUrl(lead({ is_demo: true }))).toBe("");
+    expect(instagramUrl(lead({ do_not_contact: true }))).toBe("");
   });
 });

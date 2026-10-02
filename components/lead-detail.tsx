@@ -10,6 +10,7 @@ import {
   RefreshCw,
   MessageCircle,
   MessageSquare as Facebook,
+  Camera as Instagram,
   Check,
   Pencil,
   ShieldCheck,
@@ -29,7 +30,12 @@ import { hotReasons, scoreParts, worthwhile } from "@/lib/scoring";
 import { detailQueue, sectorHome } from "@/lib/lead-views";
 import { sectorOf } from "@/lib/sector";
 import { buildOutreachContext, fallbackMessage } from "@/lib/messaging";
-import { safeUrl, whatsappUrl, whatsappCheckUrl } from "@/lib/utils";
+import {
+  instagramUrl,
+  safeUrl,
+  whatsappUrl,
+  whatsappCheckUrl,
+} from "@/lib/utils";
 const labels: Record<string, string> = {
   none: "Assente (verificato)",
   own_website: "Sito proprietario",
@@ -128,6 +134,23 @@ function Detail({ lead: l, scan }: { lead: Lead; scan?: boolean }) {
     !!whatsappCheckUrl(l, contactDraft) &&
     !l.is_demo;
   const hasFb = !blocked && !!l.facebook_url && !l.is_demo;
+  const igUrl = blocked ? "" : instagramUrl(l);
+  // Copy first, then open the page: the user pastes and sends it themselves.
+  function openWithDraft(url: string, name: string) {
+    const win = window.open("about:blank", "_blank");
+    if (win) win.opener = null;
+    void task.run(async () => {
+      try {
+        await copy();
+        await saveDraft();
+        if (win) win.location.href = url;
+        else notify(`Popup bloccato: usa il link ${name} nei contatti`);
+      } catch (e) {
+        win?.close();
+        throw e;
+      }
+    });
+  }
   const sector = sectorOf(l.category);
   // Opened from a discovery search the arrows follow that search's order; the
   // current lead keeps its place after it is contacted. Never another sector.
@@ -322,26 +345,18 @@ function Detail({ lead: l, scan }: { lead: Lead; scan?: boolean }) {
               <button
                 className="button secondary"
                 disabled={!hasFb || !text.trim() || task.busy}
-                onClick={() => {
-                  const win = window.open("about:blank", "_blank");
-                  if (win) win.opener = null;
-                  void task.run(async () => {
-                    try {
-                      await copy();
-                      await saveDraft();
-                      if (win) win.location.href = safeUrl(l.facebook_url);
-                      else
-                        notify(
-                          "Popup bloccato: usa il link Facebook nei contatti",
-                        );
-                    } catch (e) {
-                      win?.close();
-                      throw e;
-                    }
-                  });
-                }}
+                onClick={() =>
+                  openWithDraft(safeUrl(l.facebook_url), "Facebook")
+                }
               >
                 <Facebook size={16} /> Apri Facebook
+              </button>
+              <button
+                className="button secondary"
+                disabled={!igUrl || !text.trim() || task.busy}
+                onClick={() => openWithDraft(igUrl, "Instagram")}
+              >
+                <Instagram size={16} /> Apri Instagram
               </button>
               <p className="microcopy">
                 <ShieldCheck size={14} /> Si apre la chat con il testo: l’invio

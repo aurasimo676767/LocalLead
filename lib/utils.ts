@@ -96,7 +96,7 @@ const portals: [string, string][] = [
   ["agoda.com", "Agoda"],
   ["tripadvisor.it", "Tripadvisor"],
   ["tripadvisor.com", "Tripadvisor"],
-  ["subito.it", "Subito"],
+  ["subito.it", "Subito.it"],
   ["casevacanza.it", "CaseVacanza.it"],
 ];
 export const portalNames: readonly string[] = [

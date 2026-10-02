@@ -1,7 +1,7 @@
 import { contactable, type Lead, type Preferences } from "../model";
 import { websiteFailureEvidence } from "../website-evidence";
 import { sectorOf } from "../sector";
-import { portalFromText } from "../utils";
+import { portalFromText, portalNames } from "../utils";
 import { lodgingLines } from "./lodging";
 export type ContactReasonKind =
   | "no_website"
@@ -541,9 +541,9 @@ const reasonPatterns: Record<ContactReasonKind, RegExp> = {
   good_socials_bad_web:
     /(?:pagina|foto|social)[\s\S]{0,150}(?:curat|foto sono)[\s\S]{0,150}(?:sito|menu)/i,
   social_only:
-    /sito[\s\S]{0,120}(?:facebook|instagram|tiktok|linktree|piattaforma esterna|pagina social|booking|airbnb|tripadvisor|expedia|vrbo|agoda|subito)/i,
+    /sito[\s\S]{0,120}(?:facebook|instagram|tiktok|linktree|piattaforma esterna|pagina social)/i,
   portal_only:
-    /(?:sito[\s\S]{0,160}(?:booking|airbnb|vrbo|expedia|hotels\.com|agoda|tripadvisor|subito|casevacanza))|(?:(?:booking|airbnb|vrbo|expedia|hotels\.com|agoda|tripadvisor|subito|casevacanza)[\s\S]{0,160}sito)/i,
+    /sito[\s\S]{0,160}(?:booking|airbnb|vrbo|expedia|hotels\.com|agoda|tripadvisor|subito\.it|casevacanza\.it)|(?:booking|airbnb|vrbo|expedia|hotels\.com|agoda|tripadvisor|subito\.it|casevacanza\.it)[\s\S]{0,160}sito/i,
   events_no_website: /(?:serat|event)[\s\S]{0,170}(?:social|sito|spazio)/i,
 };
 // Every rule the message breaks, in words the model can act on when it retries.
@@ -579,8 +579,18 @@ export function messageProblems(
     normalizedName.length >= 3 && normalize(trimmed).includes(normalizedName),
     "Non scrivere il nome del locale nel messaggio",
   );
+  // A portal as the website must be named: "sito" plus any listing site is not enough.
+  const portal = portalNames.find((name) =>
+    context.contactReason.endsWith(`la pagina ${name}`),
+  );
   fail(
-    !reasonPatterns[context.reasonKind].test(trimmed),
+    portal
+      ? !/sito/i.test(trimmed) ||
+          !new RegExp(
+            `(?<![\\p{L}.])${portal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}])`,
+            "iu",
+          ).test(trimmed)
+      : !reasonPatterns[context.reasonKind].test(trimmed),
     `Il motivo del contatto deve essere chiaro: ${context.contactReason}`,
   );
   fail(

@@ -175,3 +175,42 @@ describe("caps and penalties", () => {
     expect(scoreLead(once, defaultPreferences)).toEqual(once);
   });
 });
+
+describe("main problem", () => {
+  it("is always a need, never a contact channel", () => {
+    const l = places(
+      newLead({
+        name: "Bar Test",
+        city: "Comiso",
+        category: "Bar",
+        website_status: "own_website",
+        whatsapp_confidence: "confirmed_business",
+      }),
+    );
+    l.analysis.evidence.push(ev("menu_ads"), ev("whatsapp"));
+    expect(scoreLead(l).main_problem).toBe("Elementi pubblicitari nel menu");
+  });
+});
+
+describe("breakdown", () => {
+  it("tells when a cap lowered the score below the sum of its parts", () => {
+    const l = places(
+      newLead({
+        name: "x",
+        city: "Vittoria",
+        category: "Bar",
+        website_status: "own_website",
+        website_quality: "good",
+        phone: "+393331234567",
+        reviews_count: 200,
+      }),
+    );
+    l.analysis.evidence.push(ev("site_ads"));
+    const s = scoreLead(l);
+    const parts = scoreParts(s);
+    expect(parts.total).toBe(parts.need + parts.reach + parts.activity);
+    expect(parts.total).toBeGreaterThan(s.lead_score);
+    expect(parts.capped).toBe(true);
+    expect(scoreParts(scoreLead(places(noSite()))).capped).toBe(false);
+  });
+});

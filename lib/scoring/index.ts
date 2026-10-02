@@ -145,7 +145,12 @@ export function scoreParts(lead: Lead) {
   const parts = { need: 0, reach: 0, activity: 0, penalty: 0 };
   for (const r of lead.analysis.reasons)
     if (r.group) parts[r.group] += r.points;
-  return parts;
+  const total = Math.min(
+    100,
+    Math.max(0, parts.need + parts.reach + parts.activity + parts.penalty),
+  );
+  // Caps (good site, low confidence, opt-out) can lower the score below the sum.
+  return { ...parts, total, capped: lead.lead_score < total };
 }
 export function scoreLead(lead: Lead, prefs?: Preferences): Lead {
   const ev = lead.analysis.evidence;
@@ -203,8 +208,9 @@ export function scoreLead(lead: Lead, prefs?: Preferences): Lead {
   const positive = reasons
     .filter((r) => r.points > 0)
     .sort((a, b) => b.points - a.points);
+  // The main problem is a need: reach and activity explain priority, not why to write.
   const main =
-    positive[0]?.label ||
+    positive.find((r) => r.group === "need")?.label ||
     (lead.website_quality === "excellent" || lead.website_quality === "good"
       ? "Sito buono: non contattare"
       : "Nessuna opportunità verificata");

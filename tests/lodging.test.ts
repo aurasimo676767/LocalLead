@@ -147,3 +147,78 @@ describe("lodging instructions", () => {
     expect(text).toContain("specialmente per i locali");
   });
 });
+
+describe("the contact reason must name the platform", () => {
+  const reasonError = (text: string, lead: Lead) =>
+    validateOutreachMessage(text, lead, defaultPreferences).errors.some((e) =>
+      e.startsWith("Il motivo del contatto"),
+    );
+  it("rejects a lodging draft that never names the portal, even with 'subito'", () => {
+    const lead = bnb();
+    const text = [0, 1, 2, 3, 4, 5]
+      .map((i) => fallbackMessage(lead, defaultPreferences, i))
+      .find((t) => /subito/i.test(t))!
+      .replace(/Booking/g, "di un portale");
+    expect(text).toMatch(/subito/i);
+    expect(reasonError(text, lead)).toBe(true);
+  });
+  it("rejects a food draft that never names Facebook, even with 'subito'", () => {
+    const lead = newLead({
+      name: "Pizzeria Test",
+      city: "Vittoria",
+      category: "Pizzeria",
+      website_url: "https://www.facebook.com/pizzeriatest",
+      website_status: "social_only",
+    });
+    lead.analysis.evidence.push({
+      id: "e1",
+      kind: "no_website",
+      text: `${platformPrefix} la pagina Facebook`,
+      url: lead.website_url,
+      confidence: 0.9,
+    });
+    const lines = fallbackMessage(lead, defaultPreferences).split("\n");
+    lines[1] =
+      "ho visto su google che come sito c'è solo una pagina, e chi vi cerca vuole vedere subito il menu";
+    const text = lines.join("\n").replace(/facebook/gi, "una pagina");
+    expect(text).toMatch(/subito/i);
+    expect(reasonError(text, lead)).toBe(true);
+  });
+  it("still writes valid drafts for a Subito.it listing", () => {
+    const lead = bnb();
+    lead.website_url = "https://www.subito.it/case-vacanza/x.htm";
+    lead.analysis.evidence[0].text = `${platformPrefix} la pagina Subito.it`;
+    expect(
+      [0, 1, 2, 3, 4, 5].some(
+        (i) =>
+          validateOutreachMessage(
+            fallbackMessage(lead, defaultPreferences, i),
+            lead,
+            defaultPreferences,
+          ).valid,
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("lodging prompt has no food wording", () => {
+  it.each([
+    { reach: "same", km: 0 },
+    { reach: "near", km: 20 },
+    { reach: "far", km: 120 },
+  ] as const)("distance $reach", (distance) => {
+    const context = buildOutreachContext(bnb(), defaultPreferences);
+    const text = outreachInstructions(
+      defaultPreferences,
+      0,
+      context,
+      false,
+      distance,
+      "alloggi",
+    );
+    expect(text).not.toMatch(/menu, QR/);
+    expect(text).not.toMatch(/il locale su Google/i);
+    expect(text).not.toMatch(/Il locale è lontano/);
+    expect(text).not.toMatch(/siti per locali/);
+  });
+});

@@ -421,7 +421,11 @@ function Detail({ lead: l, scan }: { lead: Lead; scan?: boolean }) {
                 {scoreParts(l).penalty
                   ? ` · Penalità ${scoreParts(l).penalty}`
                   : ""}{" "}
-                = {l.lead_score}. Conta solo il bisogno più forte; contatti e
+                = {scoreParts(l).total}
+                {scoreParts(l).capped
+                  ? `, limitato a ${l.lead_score} (sito già buono, dati poco affidabili o lead escluso)`
+                  : ""}
+                . Conta solo il bisogno più forte; contatti e
                 attività contano solo se c’è un bisogno verificato. Solo
                 evidenze con confidence ≥ 70%.
               </p>

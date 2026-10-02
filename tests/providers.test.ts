@@ -298,6 +298,50 @@ describe("provider contracts and conservative enrichment", () => {
     expect(result.text.length).toBeGreaterThanOrEqual(350);
     expect(result.text.length).toBeLessThanOrEqual(900);
   });
+  it("searches lodging with its own phrases and keeps only places to stay", async () => {
+    mocks.providerJson.mockResolvedValue({
+      places: [
+        {
+          id: "bnb",
+          displayName: { text: "Casa Sole" },
+          types: ["bed_and_breakfast", "lodging"],
+          internationalPhoneNumber: "+39 3331234567",
+        },
+        {
+          id: "bnb-hotel",
+          displayName: { text: "Dimora Antica" },
+          types: ["bed_and_breakfast", "hotel", "lodging"],
+          internationalPhoneNumber: "+39 3331234568",
+        },
+        {
+          id: "hotel",
+          displayName: { text: "Grand Hotel" },
+          types: ["hotel", "lodging"],
+          internationalPhoneNumber: "+39 3331234569",
+        },
+        {
+          id: "food",
+          displayName: { text: "Il B&B del Panino" },
+          types: ["restaurant", "food"],
+          internationalPhoneNumber: "+39 3331234570",
+        },
+      ],
+    });
+    const result = await new GooglePlacesProvider().searchBusinesses({
+      city: "Vittoria",
+      categories: ["B&B"],
+      limit: 10,
+    });
+    expect(result.map((l) => l.place_id)).toEqual(["bnb", "bnb-hotel"]);
+    expect(
+      result.every(
+        (l) => !l.analysis.evidence.some((e) => e.kind === "out_of_target"),
+      ),
+    ).toBe(true);
+    expect(JSON.parse(mocks.providerJson.mock.calls[0][1].body).textQuery).toBe(
+      "bed and breakfast a Vittoria",
+    );
+  });
   it("treats a booking portal as an external page, without fetching it", async () => {
     const lead = await enrichLead(
       newLead({

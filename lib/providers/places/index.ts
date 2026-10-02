@@ -8,6 +8,7 @@ import {
   safeUrl,
 } from "../../utils";
 import { providerJson } from "../http";
+import { isLodging, sectorOf } from "../../sector";
 export type SearchInput = {
   city: string;
   categories: Lead["category"][];
@@ -136,6 +137,7 @@ export class GooglePlacesProvider implements LocalBusinessProvider {
         confidence: 0.95,
       });
     if (
+      sectorOf(category) === "locali" &&
       p.types?.length &&
       !p.types.some((t) =>
         /restaurant|food|bakery|bar$|cafe|coffee|pub|pizza|ice_cream|sandwich|meal|pastry|confectionery/.test(
@@ -191,6 +193,9 @@ export class GooglePlacesProvider implements LocalBusinessProvider {
               !normalizePhone(p.internationalPhoneNumber || "") ||
               isLandlinePhone(p.internationalPhoneNumber || "")
             )
+              continue;
+            // A place to stay must be typed as one: names alone are not enough.
+            if (sectorOf(category) === "alloggi" && !isLodging(p.types))
               continue;
             const lead = this.map(p, category, input.city);
             if (isKnown(lead, input.known)) {

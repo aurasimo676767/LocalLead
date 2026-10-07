@@ -166,6 +166,18 @@ export function WorkspaceProvider({
         results.push({ lead: candidate, duplicate: false });
       }
       result = { results, skipped };
+    } else if (action === "delete_all") {
+      // Everything except opt-outs, remembered so no search finds it again.
+      const doomed = current.leads.filter((l) => !l.do_not_contact);
+      current.dismissed = [
+        ...new Set([
+          ...(current.dismissed || []),
+          ...doomed.flatMap((l) => dedupKeys(l)),
+        ]),
+      ];
+      const deleted = new Set(doomed.map((l) => l.id));
+      current.leads = current.leads.filter((l) => !deleted.has(l.id));
+      result = { deleted: [...deleted] };
     } else if (action === "delete") {
       const input = data as { ids: string[]; remember?: boolean };
       const ids = new Set(input.ids);

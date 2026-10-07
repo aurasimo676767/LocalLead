@@ -135,3 +135,39 @@ export async function deleteLeads(
     );
   return (data || []) as string[];
 }
+/**
+ * Every lead goes, contacted ones included, except opt-outs: those are what
+ * stops anyone writing again to who asked not to be contacted. All keys are
+ * remembered first, so no future search proposes these places again.
+ */
+export async function deleteAllLeads(db: SupabaseClient, userId: string) {
+  const ids: string[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await db
+      .from("leads")
+      .select("id")
+      .eq("do_not_contact", false)
+      .range(offset, offset + 999);
+    if (error || !data) throw new Error("Impossibile leggere i lead");
+    ids.push(...data.map((row: { id: string }) => row.id));
+    if (data.length < 1000) break;
+  }
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200);
+    const { data: keys, error: keysError } = await db
+      .from("lead_keys")
+      .select("key")
+      .in("lead_id", chunk);
+    if (keysError || !keys) throw new Error("Impossibile leggere i lead");
+    if (keys.length) {
+      const { error } = await db.from("dismissed_keys").upsert(
+        keys.map((k: { key: string }) => ({ user_id: userId, key: k.key })),
+        { onConflict: "user_id,key", ignoreDuplicates: true },
+      );
+      if (error) throw new Error("Cancellazione non riuscita");
+    }
+    const { error } = await db.from("leads").delete().in("id", chunk);
+    if (error) throw new Error("Cancellazione non riuscita");
+  }
+  return ids;
+}

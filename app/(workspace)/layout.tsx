@@ -3,6 +3,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { WorkspaceProvider } from "@/components/workspace";
 import { Shell } from "@/components/shell";
+import { JobsProvider } from "@/components/jobs";
 export const dynamic = "force-dynamic";
 export default async function Layout({
   children,
@@ -21,7 +22,9 @@ export default async function Layout({
   }
   return (
     <WorkspaceProvider config={config}>
-      <Shell email={email}>{children}</Shell>
+      <JobsProvider>
+        <Shell email={email}>{children}</Shell>
+      </JobsProvider>
     </WorkspaceProvider>
   );
 }

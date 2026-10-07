@@ -4,11 +4,14 @@ import { useWorkspace, useTask } from "./workspace";
 import { PageHeading, Field, ErrorText } from "./ui";
 import { type Preferences } from "@/lib/model";
 import { LOCAL_KM } from "@/lib/messaging";
-import { Download, Check } from "lucide-react";
+import { Download, Check, Trash2 } from "lucide-react";
 export function Settings() {
   const { config, preferences, command, notify, leads } = useWorkspace();
   const [prefs, setPrefs] = useState(preferences);
   const task = useTask();
+  const wipe = useTask();
+  const [confirmWipe, setConfirmWipe] = useState("");
+  const wipeable = leads.filter((l) => !l.do_not_contact).length;
   return (
     <>
       <PageHeading
@@ -210,6 +213,39 @@ export function Settings() {
             >
               <Download size={16} /> Esporta backup
             </button>
+          </section>
+          <section className="panel">
+            <h2>Ricomincia da zero</h2>
+            <p className="muted">
+              Cancella {wipeable} lead, locali e alloggi, anche quelli già
+              contattati, con bozze, anteprime e cronologia. Le ricerche future
+              non li ripescheranno. Restano solo i {leads.length - wipeable}{" "}
+              segnati «non contattare». Esporta prima un backup se ti serve.
+            </p>
+            <Field label="Scrivi CANCELLA per confermare">
+              <input
+                value={confirmWipe}
+                onChange={(e) => setConfirmWipe(e.target.value)}
+                placeholder="CANCELLA"
+              />
+            </Field>
+            <button
+              className="button danger-solid"
+              disabled={confirmWipe !== "CANCELLA" || wipe.busy || !wipeable}
+              onClick={() =>
+                void wipe.run(async () => {
+                  const result = await command("delete_all", "CANCELLA");
+                  setConfirmWipe("");
+                  notify(
+                    `${result.deleted?.length || 0} lead cancellati: le prossime ricerche non li ripescano`,
+                  );
+                })
+              }
+            >
+              {wipe.busy ? <span className="spinner" /> : <Trash2 size={16} />}{" "}
+              Cancella tutti i lead
+            </button>
+            <ErrorText text={wipe.error} />
           </section>
         </div>
       </div>

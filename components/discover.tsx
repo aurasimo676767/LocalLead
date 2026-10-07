@@ -1,28 +1,21 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ScanSearch, MapPin, ArrowRight, Check } from "lucide-react";
-import { useWorkspace, useTask } from "./workspace";
+import { useWorkspace } from "./workspace";
+import { useJobs } from "./jobs";
 import { saveScanBatch } from "./scan-batch";
-import { PageHeading, Field, ErrorText, Score, Status } from "./ui";
+import { PageHeading, Field, Score, Status } from "./ui";
 import { type Lead } from "@/lib/model";
 import { inSector, sectorCategories, type Sector } from "@/lib/sector";
 import { fitsFilter } from "@/lib/scoring";
-import { needsDraft } from "@/lib/lead-views";
 export function Discover({ sector = "locali" }: { sector?: Sector }) {
-  const { command, config, leads, preferences } = useWorkspace();
+  const { config, leads, preferences } = useWorkspace();
   const lodging = sector === "alloggi";
   const noun = lodging ? "alloggi" : "locali";
   const options = sectorCategories(sector);
-  const task = useTask();
-  // Closing the tab mid-search stops the analyses and the drafts still to write.
-  useEffect(() => {
-    if (!task.busy) return;
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [task.busy]);
+  const jobs = useJobs();
   const params = useSearchParams();
   const [city, setCity] = useState(
     () => params.get("city") || preferences.sender_city || "Vittoria",
@@ -42,7 +35,6 @@ export function Discover({ sector = "locali" }: { sector?: Sector }) {
       }, new Map<string, { name: string; count: number }>())
       .values(),
   ].sort((a, b) => b.count - a.count);
-  const [skipped, setSkipped] = useState(0);
   const [selected, setSelected] = useState<Lead["category"][]>(
     lodging
       ? ["B&B", "Casa vacanza"]
@@ -50,63 +42,38 @@ export function Discover({ sector = "locali" }: { sector?: Sector }) {
   );
   const [limit, setLimit] = useState(30);
   const [filter, setFilter] = useState("all");
-  const [results, setResults] = useState<
-    { lead: Lead; duplicate: boolean }[] | null
-  >(null);
-  const [progress, setProgress] = useState("");
-  const [warnings, setWarnings] = useState<string[]>([]);
-  async function search() {
-    await task.run(async () => {
-      setWarnings([]);
-      setResults(null);
-      setSkipped(0);
-      setProgress("Ricerca delle attività…");
-      const r = await command("discover", {
-        city,
-        categories: selected,
-        limit,
-        filter,
-      });
-      const rows = (r.results || []).filter((row) => !row.duplicate);
-      setSkipped(r.skipped || 0);
-      setResults(rows);
-      const completed = [...rows];
-      // Each lead gets its draft (and preview) right after its analysis: leaving
-      // the page halfway keeps everything already done.
-      let drafting = true;
-      for (let i = 0; i < rows.length; i++) {
-        const name = rows[i].lead.name;
-        setProgress(`Locale ${i + 1} di ${rows.length}: ${name}`);
-        try {
-          const analyzed = await command("analyze", undefined, rows[i].lead.id);
-          if (analyzed.lead) completed[i] = { ...rows[i], lead: analyzed.lead };
-          setResults([...completed]);
-        } catch (e) {
-          setWarnings((w) => [
-            ...w,
-            `${name}: ${e instanceof Error ? e.message : "Analisi non disponibile"}`,
-          ]);
-          continue;
-        }
-        if (!drafting || !needsDraft(completed[i].lead, preferences)) continue;
-        setProgress(`Locale ${i + 1} di ${rows.length}: bozza per ${name}`);
-        try {
-          const written = await command("message", undefined, rows[i].lead.id);
-          if (written.lead)
-            completed[i] = { ...completed[i], lead: written.lead };
-          setResults([...completed]);
-        } catch (e) {
-          const problem =
-            e instanceof Error ? e.message : "Messaggio non disponibile";
-          setWarnings((w) => [...w, `${name}: ${problem}`]);
-          // A rate limit stops the drafts: the rest wait for "Prepara bozze".
-          if (/Troppe richieste/i.test(problem)) drafting = false;
-        }
-      }
-      setProgress("Ricerca completata");
-    });
+  // The search runs in the background job runner: it survives leaving this page.
+  const job = jobs.lastSearch(sector);
+  const working = !!job && job.state !== "done";
+  const skipped = job?.skipped || 0;
+  const progress = job
+    ? job.state === "queued"
+      ? "In coda…"
+      : job.state === "running"
+        ? job.leadIds.length
+          ? `Locale ${Math.min(job.finished.length + 1, job.leadIds.length)} di ${job.leadIds.length}: ${job.current}`
+          : job.current || "Ricerca delle attività…"
+        : "Ricerca completata"
+    : "";
+  const warnings = [
+    ...(job?.error ? [job.error] : []),
+    ...(job?.failures || []).map((f) => `${f.id}: ${f.error}`),
+  ];
+  const results = job
+    ? job.leadIds
+        .map((id) => leads.find((l) => l.id === id))
+        .filter((l): l is Lead => !!l)
+        .map((lead) => ({
+          lead,
+          waiting: working && !job.finished.includes(lead.id),
+        }))
+    : null;
+  function search() {
+    jobs.startSearch({ city, categories: selected, limit, filter }, sector);
   }
-  const visible = results?.filter((r) => fitsFilter(r.lead, filter));
+  const visible = results?.filter((r) =>
+    fitsFilter(r.lead, job?.input?.filter || "all"),
+  );
   // Opening a result pins the arrows on the lead page to this search only.
   const openFromScan = () =>
     saveScanBatch(visible?.map((r) => r.lead.id) || []);
@@ -207,23 +174,18 @@ export function Discover({ sector = "locali" }: { sector?: Sector }) {
               </select>
             </Field>
           </div>
-          <ErrorText text={task.error} />
           <button
             className="button full"
-            disabled={task.busy || !selected.length}
+            disabled={working || !selected.length}
           >
-            {task.busy ? (
-              <span className="spinner" />
-            ) : (
-              <ScanSearch size={17} />
-            )}{" "}
-            {task.busy ? "Ricerca in corso…" : `Cerca ${noun} nuovi`}
+            {working ? <span className="spinner" /> : <ScanSearch size={17} />}{" "}
+            {working ? "Ricerca in corso…" : `Cerca ${noun} nuovi`}
             <ArrowRight size={17} />
           </button>
-          {task.busy ? (
+          {working ? (
             <div className="note">
-              Non chiudere né ricaricare questa pagina finché non finisce: ogni
-              locale riceve analisi, bozza e anteprima uno alla volta.
+              La ricerca continua anche se cambi pagina o apri un lead: non
+              chiudere né ricaricare la scheda finché non finisce.
             </div>
           ) : (
             <small className="muted">
@@ -263,12 +225,12 @@ export function Discover({ sector = "locali" }: { sector?: Sector }) {
           )}
         </aside>
       </div>
-      {(task.busy || results) && (
+      {(working || results) && (
         <section className="panel discovery-results">
           <div className="section-heading">
             <div>
               <h2>
-                {task.busy
+                {working
                   ? progress
                   : visible?.length === 1
                     ? lodging
@@ -294,6 +256,25 @@ export function Discover({ sector = "locali" }: { sector?: Sector }) {
                   <strong>{r.lead.name}</strong>
                 </Link>
                 <p>{r.lead.main_problem}</p>
+                <small className="muted">
+                  {r.waiting
+                    ? "In attesa di analisi e bozza"
+                    : r.lead.messages.length
+                      ? "Bozza pronta"
+                      : "Nessun motivo per una bozza"}
+                  {r.lead.preview && (
+                    <>
+                      {" · "}
+                      <a
+                        href={`/s/${r.lead.preview.slug}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Anteprima
+                      </a>
+                    </>
+                  )}
+                </small>
               </div>
               <Status lead={r.lead} />
               <Link
@@ -305,7 +286,7 @@ export function Discover({ sector = "locali" }: { sector?: Sector }) {
               </Link>
             </div>
           ))}
-          {!task.busy && !visible?.length && (
+          {!working && !visible?.length && (
             <div className="empty-state">
               {skipped > 0
                 ? "Nessun locale nuovo: quelli trovati li avevi già. Prova altre categorie o una città vicina."

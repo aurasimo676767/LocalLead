@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useWorkspace } from "./workspace";
 import { Logo } from "./logo";
+import { JobBanner } from "./job-banner";
 import { activeNav } from "@/lib/lead-views";
 import { inSector } from "@/lib/sector";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -203,6 +204,7 @@ export function Shell({
           </div>
         )}
         <main id="main-content" tabIndex={-1}>
+          <JobBanner />
           {loading ? (
             <div className="empty-state">
               <span className="spinner" /> Caricamento del tuo spazio…

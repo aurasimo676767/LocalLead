@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { useWorkspace, useTask } from "./workspace";
+import { useJobs } from "./jobs";
 import { useOverlay } from "./use-overlay";
 import { PageHeading, LeadTable, Field, ErrorText } from "./ui";
 import {
@@ -34,9 +35,11 @@ export function LeadList({
   const lodging = sector === "alloggi";
   const noun = lodging ? ["alloggio", "alloggi"] : ["locale", "locali"];
   const findHref = lodging ? "/alloggi/cerca" : "/discover";
-  const { leads, preferences, command, notify } = useWorkspace();
-  const drafts = useTask();
-  const [drafted, setDrafted] = useState("");
+  const { leads, preferences, notify } = useWorkspace();
+  const jobs = useJobs();
+  const draftsQueued = jobs.jobs.some(
+    (j) => j.kind === "drafts" && j.sector === sector && j.state !== "done",
+  );
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("");
   const [category, setCategory] = useState("");
@@ -176,28 +179,25 @@ export function LeadList({
             {pending.length > 0 && (
               <button
                 className="button secondary"
-                disabled={drafts.busy}
-                onClick={() =>
-                  void drafts.run(async () => {
-                    for (const [i, lead] of pending.entries()) {
-                      setDrafted(`Bozza ${i + 1} di ${pending.length}`);
-                      await command("message", undefined, lead.id);
-                    }
-                    setDrafted("");
-                    notify(
-                      pending.length === 1
-                        ? "1 bozza pronta"
-                        : `${pending.length} bozze pronte`,
-                    );
-                  })
-                }
+                disabled={draftsQueued}
+                onClick={() => {
+                  // Runs in the background: leaving this page does not stop it.
+                  jobs.startDrafts(
+                    pending.map((l) => l.id),
+                    `Bozze ${activeCity?.name || "di tutte le città"}`,
+                    sector,
+                  );
+                  notify("Bozze in preparazione: puoi cambiare pagina");
+                }}
               >
-                {drafts.busy ? (
+                {draftsQueued ? (
                   <span className="spinner" />
                 ) : (
                   <Sparkles size={16} />
                 )}
-                {drafts.busy ? drafted : `Prepara ${pending.length} bozze`}
+                {draftsQueued
+                  ? "Bozze in preparazione…"
+                  : `Prepara ${pending.length} bozze`}
               </button>
             )}
             {removable.length > 0 && (

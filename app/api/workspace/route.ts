@@ -4,6 +4,7 @@ import { publicConfig } from "@/lib/config";
 import { supabaseServer } from "@/lib/supabase/server";
 import {
   allLeads,
+  deleteAllLeads,
   deleteLeads,
   dismissedKeys,
   getLead,
@@ -152,6 +153,7 @@ export async function POST(req: NextRequest) {
           "discover",
           "settings",
           "delete",
+          "delete_all",
         ]),
         id: z.uuid().optional(),
         data: z.unknown().optional(),
@@ -188,6 +190,13 @@ export async function POST(req: NextRequest) {
         .eq("id", user.id);
       if (error) throw new Error("Preferenze non salvate");
       return NextResponse.json({ preferences: prefs });
+    }
+    if (body.action === "delete_all") {
+      if (body.data !== "CANCELLA")
+        throw new HttpError("Conferma la cancellazione di tutti i lead", 400);
+      return NextResponse.json({
+        deleted: await deleteAllLeads(db, user.id),
+      });
     }
     if (body.action === "delete") {
       const input = z

@@ -2449,3 +2449,32 @@ summary {
   margin: 6px 0 0;
   font-size: 14px;
 }
+.job-banner {
+  position: sticky;
+  top: 8px;
+  z-index: 15;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: 0 0 18px;
+  padding: 10px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px -16px rgb(0 0 0 / 0.4);
+}
+.job-banner a {
+  color: var(--ink);
+  text-decoration: none;
+}
+.job-banner small {
+  flex-basis: 100%;
+  color: var(--muted);
+}
+.job-banner.done {
+  border-color: var(--line);
+}
+.job-banner .icon-btn {
+  margin-left: auto;
+}

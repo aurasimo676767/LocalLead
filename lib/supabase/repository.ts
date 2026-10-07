@@ -1,6 +1,11 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { type Lead, type Workspace, preferencesSchema } from "../model";
+import {
+  type Lead,
+  type SitePreview,
+  type Workspace,
+  preferencesSchema,
+} from "../model";
 import { dedupKeys } from "../utils";
 export async function allLeads(db: SupabaseClient): Promise<Lead[]> {
   const rows: Lead[] = [];
@@ -21,7 +26,36 @@ export async function allLeads(db: SupabaseClient): Promise<Lead[]> {
     l.messages.sort((a, b) => a.created_at.localeCompare(b.created_at));
     l.events.sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
+  await attachPreviews(db, rows);
   return rows;
+}
+/**
+ * Read separately and never fatal: before migration 003 runs the table is
+ * missing, and leads simply have no preview.
+ */
+export async function attachPreviews(db: SupabaseClient, leads: Lead[]) {
+  if (!leads.length) return;
+  try {
+    const byLead = new Map<string, SitePreview>();
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await db
+        .from("site_previews")
+        .select("lead_id,slug,views,last_viewed_at,expires_at")
+        .range(offset, offset + 999);
+      if (error || !data) return;
+      for (const { lead_id, ...preview } of data as (SitePreview & {
+        lead_id: string;
+      })[])
+        byLead.set(lead_id, preview);
+      if (data.length < 1000) break;
+    }
+    for (const l of leads) {
+      const preview = byLead.get(l.id);
+      if (preview) l.preview = preview;
+    }
+  } catch {
+    // Previews are optional: the workspace loads without them.
+  }
 }
 export async function getLead(db: SupabaseClient, id: string): Promise<Lead> {
   const { data, error } = await db
@@ -33,6 +67,7 @@ export async function getLead(db: SupabaseClient, id: string): Promise<Lead> {
   const l = data as Lead;
   l.messages.sort((a, b) => a.created_at.localeCompare(b.created_at));
   l.events.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  await attachPreviews(db, [l]);
   return l;
 }
 export async function getWorkspace(

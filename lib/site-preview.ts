@@ -169,6 +169,9 @@ export function fallbackCopy(lead: Lead, variant = 0): SiteCopy {
 // Facts we never have evidence for: numbers, years, rankings, ingredients, views.
 const invented =
   /\d|\b(?:miglior[ei]?|più buon[aoei]|il top|numero uno|unic[oaie]|da generazioni|tradizion\w*|anni di|forno a legna|a legna|vista mare|sul mare|due passi|centro storico|premiat\w*|recension\w*|stelle|famos\w*|rinomat\w*|artigianal\w*|km zero|biologic\w*|ingredienti|selezionat\w*|eccellenz\w*|garantit\w*)/i;
+// Brochure words: the page must read as written by the owner, not by an agency.
+const agency =
+  /\b(?:qualit|esperienz|passion|professional|soluzion|offriamo|servizi)/i;
 const limits: Record<keyof SiteCopy, [number, number]> = {
   title: [8, 60],
   intro: [20, 220],
@@ -187,6 +190,11 @@ export function copyProblems(copy: SiteCopy) {
     if (hit)
       problems.push(
         `${key}: niente fatti che non conosciamo ("${hit[0]}"), scrivi solo frasi alla mano`,
+      );
+    const stiff = text.match(agency);
+    if (stiff)
+      problems.push(
+        `${key}: "${stiff[0]}" suona da agenzia, scrivi come parlerebbe il titolare`,
       );
   }
   return problems;

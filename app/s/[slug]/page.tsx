@@ -53,7 +53,8 @@ export default async function Page({
   params: Promise<{ slug: string }>;
 }) {
   const agent = (await headers()).get("user-agent") || "";
-  const p = await load((await params).slug, !isPreviewBot(agent));
+  const slug = (await params).slug;
+  const p = await load(slug, !isPreviewBot(agent));
   if (!p) return <PreviewUnavailable />;
   // The database hands out the place only to real visitors within the hourly budget.
   const photos = await placePhotos(p.place_id);
@@ -63,6 +64,7 @@ export default async function Page({
       sender={p.sender}
       photos={photos}
       fromGoogle={!!p.from_google}
+      slug={slug}
     />
   );
 }

@@ -269,3 +269,17 @@ export function previewSummary(p: SitePreview) {
   });
   return `aperta ${p.views === 1 ? "1 volta" : `${p.views} volte`}, ultima il ${day}`;
 }
+/**
+ * Small, stable differences per link, so no two previews look stamped from one
+ * template: photo tilt, which title line is outlined, photo position, hue.
+ */
+export function previewLook(slug: string) {
+  const n = [...slug].reduce((h, c) => (h * 33 + c.charCodeAt(0)) >>> 0, 5381);
+  return {
+    tilt: ((n % 9) - 4) * 0.75,
+    outlined: (n >>> 3) % 3,
+    photoFirst: ((n >>> 5) & 1) === 1,
+    hue: ((n >>> 7) % 25) - 12,
+    seed: n,
+  };
+}

@@ -1,4 +1,5 @@
-import { contacted, type Lead } from "./model";
+import { contactable, contacted, type Lead, type Preferences } from "./model";
+import { buildOutreachContext } from "./messaging";
 import { isLandlinePhone } from "./utils";
 import { sectorOf, type Sector } from "./sector";
 
@@ -58,3 +59,8 @@ export function activeNav(path: string, leads: Lead[]) {
   }
   return path.startsWith("/leads") ? "/leads" : path;
 }
+/** A contactable lead with a verified reason and no draft yet. */
+export const needsDraft = (lead: Lead, prefs: Preferences) =>
+  contactable(lead) &&
+  !lead.messages.length &&
+  buildOutreachContext(lead, prefs).status === "ready";

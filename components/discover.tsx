@@ -1,21 +1,28 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ScanSearch, MapPin, ArrowRight, Check } from "lucide-react";
 import { useWorkspace, useTask } from "./workspace";
 import { saveScanBatch } from "./scan-batch";
 import { PageHeading, Field, ErrorText, Score, Status } from "./ui";
-import { contactable, type Lead } from "@/lib/model";
+import { type Lead } from "@/lib/model";
 import { inSector, sectorCategories, type Sector } from "@/lib/sector";
 import { fitsFilter } from "@/lib/scoring";
-import { buildOutreachContext } from "@/lib/messaging";
+import { needsDraft } from "@/lib/lead-views";
 export function Discover({ sector = "locali" }: { sector?: Sector }) {
   const { command, config, leads, preferences } = useWorkspace();
   const lodging = sector === "alloggi";
   const noun = lodging ? "alloggi" : "locali";
   const options = sectorCategories(sector);
   const task = useTask();
+  // Closing the tab mid-search stops the analyses and the drafts still to write.
+  useEffect(() => {
+    if (!task.busy) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [task.busy]);
   const params = useSearchParams();
   const [city, setCity] = useState(
     () => params.get("city") || preferences.sender_city || "Vittoria",
@@ -64,8 +71,12 @@ export function Discover({ sector = "locali" }: { sector?: Sector }) {
       setSkipped(r.skipped || 0);
       setResults(rows);
       const completed = [...rows];
+      // Each lead gets its draft (and preview) right after its analysis: leaving
+      // the page halfway keeps everything already done.
+      let drafting = true;
       for (let i = 0; i < rows.length; i++) {
-        setProgress(`Analisi ${i + 1} di ${rows.length}: ${rows[i].lead.name}`);
+        const name = rows[i].lead.name;
+        setProgress(`Locale ${i + 1} di ${rows.length}: ${name}`);
         try {
           const analyzed = await command("analyze", undefined, rows[i].lead.id);
           if (analyzed.lead) completed[i] = { ...rows[i], lead: analyzed.lead };
@@ -73,33 +84,23 @@ export function Discover({ sector = "locali" }: { sector?: Sector }) {
         } catch (e) {
           setWarnings((w) => [
             ...w,
-            `${rows[i].lead.name}: ${e instanceof Error ? e.message : "Analisi non disponibile"}`,
+            `${name}: ${e instanceof Error ? e.message : "Analisi non disponibile"}`,
           ]);
+          continue;
         }
-      }
-      // Drafts are written straight away: opening a lead should need no wait.
-      const ready = completed.filter(
-        (row) =>
-          contactable(row.lead) &&
-          !row.lead.messages.length &&
-          buildOutreachContext(row.lead, preferences).status === "ready",
-      );
-      for (const [i, row] of ready.entries()) {
-        setProgress(`Messaggio ${i + 1} di ${ready.length}: ${row.lead.name}`);
+        if (!drafting || !needsDraft(completed[i].lead, preferences)) continue;
+        setProgress(`Locale ${i + 1} di ${rows.length}: bozza per ${name}`);
         try {
-          const written = await command("message", undefined, row.lead.id);
-          if (written.lead) {
-            const at = completed.findIndex((x) => x.lead.id === row.lead.id);
-            if (at >= 0)
-              completed[at] = { ...completed[at], lead: written.lead };
-            setResults([...completed]);
-          }
+          const written = await command("message", undefined, rows[i].lead.id);
+          if (written.lead)
+            completed[i] = { ...completed[i], lead: written.lead };
+          setResults([...completed]);
         } catch (e) {
           const problem =
             e instanceof Error ? e.message : "Messaggio non disponibile";
-          setWarnings((w) => [...w, `${row.lead.name}: ${problem}`]);
-          // A rate limit stops the batch: the remaining drafts wait for the lead page.
-          if (/Troppe richieste/i.test(problem)) break;
+          setWarnings((w) => [...w, `${name}: ${problem}`]);
+          // A rate limit stops the drafts: the rest wait for "Prepara bozze".
+          if (/Troppe richieste/i.test(problem)) drafting = false;
         }
       }
       setProgress("Ricerca completata");
@@ -219,10 +220,17 @@ export function Discover({ sector = "locali" }: { sector?: Sector }) {
             {task.busy ? "Ricerca in corso…" : `Cerca ${noun} nuovi`}
             <ArrowRight size={17} />
           </button>
-          <small className="muted">
-            {config.places}. L’analisi viene eseguita una volta e conservata in
-            cache.
-          </small>
+          {task.busy ? (
+            <div className="note">
+              Non chiudere né ricaricare questa pagina finché non finisce: ogni
+              locale riceve analisi, bozza e anteprima uno alla volta.
+            </div>
+          ) : (
+            <small className="muted">
+              {config.places}. L’analisi viene eseguita una volta e conservata
+              in cache.
+            </small>
+          )}
         </form>
         <aside className="discovery-guide">
           <div className="guide-orbit">

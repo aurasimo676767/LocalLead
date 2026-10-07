@@ -84,3 +84,32 @@ describe("navigation", () => {
     expect(sectorHome("locali")).toBe("/leads");
   });
 });
+
+import { needsDraft } from "@/lib/lead-views";
+import { defaultPreferences } from "@/lib/model";
+import { demoLeads } from "@/lib/demo";
+describe("which leads still need a draft", () => {
+  it("is a contactable lead with a reason and no draft yet", () => {
+    const [ready, , , , , excellent, closed] = demoLeads();
+    expect(needsDraft(ready, defaultPreferences)).toBe(true);
+    expect(
+      needsDraft(
+        {
+          ...ready,
+          messages: [
+            {
+              id: "m",
+              message_type: "outreach",
+              text: "x",
+              model: "x",
+              created_at: "",
+            },
+          ],
+        },
+        defaultPreferences,
+      ),
+    ).toBe(false);
+    expect(needsDraft(excellent, defaultPreferences)).toBe(false);
+    expect(needsDraft(closed, defaultPreferences)).toBe(false);
+  });
+});

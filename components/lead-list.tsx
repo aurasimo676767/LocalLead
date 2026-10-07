@@ -17,14 +17,12 @@ import {
   statuses,
   statusLabels,
   contacted,
-  contactable,
   deletable,
   type Lead,
 } from "@/lib/model";
-import { pageLeads, type ListMode } from "@/lib/lead-views";
+import { needsDraft, pageLeads, type ListMode } from "@/lib/lead-views";
 import { sectorCategories, type Sector } from "@/lib/sector";
 import { fitsFilter } from "@/lib/scoring";
-import { buildOutreachContext } from "@/lib/messaging";
 const cityKey = (city: string) => city.trim().toLocaleLowerCase("it");
 export function LeadList({
   mode = "all",
@@ -98,12 +96,7 @@ export function LeadList({
     );
   const removable = inCity.filter(deletable);
   // Leads whose draft is still missing: writing them in one go saves a click each.
-  const pending = inCity.filter(
-    (l) =>
-      contactable(l) &&
-      !l.messages.length &&
-      buildOutreachContext(l, preferences).status === "ready",
-  );
+  const pending = inCity.filter((l) => needsDraft(l, preferences));
   const withoutSite = inCity.filter((l) => fitsFilter(l, "none")).length;
   const extraFilters =
     [category, status, channel, contact].filter(Boolean).length +

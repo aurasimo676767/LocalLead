@@ -234,6 +234,15 @@ export type Lead = {
   messages: Message[];
   events: LeadEvent[];
   is_demo: boolean;
+  // Loaded separately: absent until migration 003 runs.
+  preview?: SitePreview | null;
+};
+/** A public preview of the site Simone would build for this lead. */
+export type SitePreview = {
+  slug: string;
+  views: number;
+  last_viewed_at: string | null;
+  expires_at: string;
 };
 export const preferencesSchema = z.object({
   tone: z.enum(["molto casual", "casual", "neutro"]).default("casual"),
@@ -251,6 +260,9 @@ export const preferencesSchema = z.object({
   sender_lat: z.number().min(-90).max(90).nullable().default(null),
   sender_lng: z.number().min(-180).max(180).nullable().default(null),
   sender_label: z.string().max(120).default(""),
+  // For the "Mi interessa" button and the price line on site previews.
+  sender_phone: z.string().trim().max(40).default(""),
+  site_price: z.number().int().min(0).max(10000).default(200),
 });
 export type Preferences = z.infer<typeof preferencesSchema>;
 export const defaultPreferences = preferencesSchema.parse({});

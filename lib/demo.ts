@@ -7,6 +7,8 @@ import {
   type Workspace,
 } from "./model";
 import { scoreLead } from "./scoring";
+import { contactable } from "./model";
+import { fallbackCopy, siteContent } from "./site-preview";
 const specs: Array<
   Partial<Lead> & {
     name: string;
@@ -172,8 +174,36 @@ export function demoLeads(): Lead[] {
     return scoreLead(l);
   });
 }
+// Demo previews live at /s/demo-N, built from fixture N: no database, no providers.
+const demoSlug = (n: number) => `demo-${n}`;
+export function demoPreview(slug: string) {
+  const n = Number(slug.match(/^demo-(\d+)$/)?.[1] ?? -1);
+  const lead = demoLeads()[n];
+  if (!lead || !contactable(lead)) return null;
+  return {
+    content: siteContent(lead, fallbackCopy(lead, n)),
+    place_id: "",
+    sender: {
+      name: defaultPreferences.sender_name,
+      phone: "",
+      price: defaultPreferences.site_price,
+    },
+  };
+}
 export const demoWorkspace = (): Workspace => {
-  const all = demoLeads();
+  const all = demoLeads().map((l, n) =>
+    contactable(l)
+      ? {
+          ...l,
+          preview: {
+            slug: demoSlug(n),
+            views: 0,
+            last_viewed_at: null,
+            expires_at: "2099-12-31T00:00:00.000Z",
+          },
+        }
+      : l,
+  );
   return {
     leads: [
       ...all.slice(0, 8),

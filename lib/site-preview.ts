@@ -80,7 +80,7 @@ export function fallbackCopy(lead: Lead, variant = 0): SiteCopy {
       title: pick(
         [
           `Il vostro posto per dormire${where}`,
-          `Benvenuti nella nostra ${kind}!`,
+          "Benvenuti, fate come a casa vostra!",
           `Ciao! Siamo la vostra ${kind}${where}`,
         ],
         v,
@@ -120,9 +120,9 @@ export function fallbackCopy(lead: Lead, variant = 0): SiteCopy {
   return {
     title: pick(
       [
-        `La nostra ${kind}${where}`,
-        `Benvenuti da noi${where}!`,
-        `Ciao! Questa è la nostra ${kind}`,
+        "Ciao, benvenuti da noi!",
+        "Che bello vederti da queste parti!",
+        `Questa è la nostra ${kind}, ti aspettiamo`,
       ],
       v,
       0,

@@ -164,3 +164,35 @@ describe("AI drafts in the short format", () => {
     expect(ai.parse).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("a way out for who doesn't open links", () => {
+  it("offers photos right after the link, in brackets", () => {
+    const l = { ...demoLeads()[0], is_demo: false, preview };
+    const text = fallbackMessage(l, defaultPreferences, 0);
+    expect(text).toContain(
+      `${link} (se non vi fidate ad aprire il link vi mando qualche foto)`,
+    );
+    expect(validateOutreachMessage(text, l, defaultPreferences).errors).toEqual(
+      [],
+    );
+    const plain = { ...l, preview: null };
+    expect(fallbackMessage(plain, defaultPreferences, 0)).not.toContain(
+      "vi mando qualche foto",
+    );
+  });
+  it("asks the AI for the same brackets", () => {
+    const l = { ...demoLeads()[0], is_demo: false, preview };
+    const text = outreachInstructions(
+      defaultPreferences,
+      0,
+      buildOutreachContext(l, defaultPreferences),
+      false,
+      { reach: "same", km: 0 },
+      "locali",
+      link,
+    );
+    expect(text).toContain(
+      "(se non vi fidate ad aprire il link vi mando qualche foto)",
+    );
+  });
+});

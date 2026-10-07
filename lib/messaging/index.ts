@@ -300,6 +300,9 @@ const greeting = (p: Preferences, variant: number) =>
   p.tone === "neutro"
     ? "Ciao,"
     : pick(["ciao buongiorno!", "ciao!"], variant, 0);
+/** Right after the preview link, for who won't open links from a stranger. */
+export const photoOffer =
+  "(se non vi fidate ad aprire il link vi mando qualche foto)";
 const ownSiteReasons: ContactReasonKind[] = [
   "broken_website",
   "poor_website",
@@ -334,7 +337,8 @@ function offerLine(
         variant,
         1,
       );
-  return `${lead}, date un'occhiata ${link}`;
+  // Some won't open a link from a stranger: give them another way to see it.
+  return `${lead}, date un'occhiata ${link} ${photoOffer}`;
 }
 /** Who is writing, in half a line, then a light question: never a pitch. */
 export function senderLine(l: Lead, p: Preferences, variant = 0) {

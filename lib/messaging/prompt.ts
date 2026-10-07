@@ -1,6 +1,6 @@
 import type { Preferences } from "../model";
 import type { Sector } from "../sector";
-import type { OutreachContext, senderReach } from "./index";
+import { photoOffer, type OutreachContext, type senderReach } from "./index";
 
 // One instruction source: greetings, format and preferences must never compete.
 // A first message is short: what was seen, the preview, who is writing. The
@@ -38,7 +38,7 @@ export function outreachInstructions(
     `Lunghezza 150–400 caratteri (il link non conta), in 3 righe separate da un a capo, ogni riga al massimo 200 caratteri. Struttura: 1) saluto e cosa hai visto cercandoli su Google, 2) ${previewUrl ? "l'anteprima con il link" : "in una frase cosa faresti per loro"}, 3) chi sei in mezza frase e una domanda leggera.`,
     'Prima riga: inizia con "ciao buongiorno!" oppure "ciao!" (un solo punto esclamativo in tutto il messaggio) e racconta subito l\'osservazione, dicendo che li hai trovati su Google. Se l\'osservazione viene da Facebook o Instagram, dillo esplicitamente. Non cominciare presentandoti e non usare Ciao come va, salve, gentile, ho analizzato o ho notato che.',
     previewUrl
-      ? `Seconda riga: di' con parole tue che per curiosità hai provato a fare un'anteprima di come potrebbe venire il loro sito, poi scrivi "date un'occhiata" seguito da uno spazio e da questo link esatto: ${previewUrl} . Il link una sola volta, così com'è, senza emoji prima del link e senza altri link. Non offrire altre demo o lavoro gratuito oltre all'anteprima.`
+      ? `Seconda riga: di' con parole tue che per curiosità hai provato a fare un'anteprima di come potrebbe venire il loro sito, poi scrivi "date un'occhiata" seguito da uno spazio e da questo link esatto: ${previewUrl} , e subito dopo il link scrivi tra parentesi, uguale, "${photoOffer}". Il link una sola volta, così com'è, senza emoji prima del link e senza altri link. Non offrire altre demo o lavoro gratuito oltre all'anteprima.`
       : `Seconda riga: di' in una frase cosa faresti, un sito vostro fatto su misura con quello che serve (${lodging ? "foto delle camere, posizione e contatti" : "menu, foto e contatti"}). Non inserire link. ${prefs.free_demo ? "Una demo gratuita è consentita, non obbligatoria." : "Non offrire demo, bozze, prove o lavoro gratuito."}`,
     `Terza riga: ${name ? `di' chi sei in mezza frase, per esempio "${signature}",` : `di' in mezza frase "${signature}",`} poi la domanda finale. Chiudi con una domanda semplice e breve, scritta con parole tue, come "che ne dite?" o "vi piace?". Solo il nome, mai il cognome. Non usare "ti va di parlarne?", "se vi va ne parliamo", "possiamo sentirci", "resto a disposizione" o "senza impegno".`,
     "Non spiegare perché un sito aiuta le vendite e non elencare cosa metteresti nel sito: lo mostra già l'anteprima. Niente prezzi nel messaggio. Esempio di tono, da non copiare: \"ciao buongiorno! cercando su google non ho trovato un sito vostro, c'è solo la pagina facebook / per curiosità ho provato a fare un'anteprima di come potrebbe venire, date un'occhiata [link] / sono Simone, faccio siti per i locali qui a Vittoria, che ne dite? 🙂\".",

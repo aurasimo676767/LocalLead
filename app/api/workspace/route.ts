@@ -13,6 +13,7 @@ import {
 } from "@/lib/supabase/repository";
 import { inputSchema, discoverySchema } from "@/lib/validation";
 import {
+  contactable,
   newLead,
   now,
   uid,
@@ -26,6 +27,7 @@ import { analyzeLead, generateOutreachMessage } from "@/lib/ai";
 import { dedupKeys, duplicate, normalizePhone } from "@/lib/utils";
 import { scoreLead } from "@/lib/scoring";
 import { buildOutreachContext } from "@/lib/messaging";
+import { ensurePreview } from "@/lib/previews";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 class HttpError extends Error {
@@ -301,6 +303,9 @@ export async function POST(req: NextRequest) {
         .order("created_at", { ascending: false })
         .limit(15);
       if (error) throw new Error("Cronologia messaggi non disponibile");
+      // The preview link goes in the draft; without it the draft goes out as before.
+      if (contactable(lead) && context.status === "ready")
+        lead.preview = (await ensurePreview(db, lead)) ?? lead.preview;
       const generated = await generateOutreachMessage(
         lead,
         preferences,

@@ -3,6 +3,7 @@ import { websiteFailureEvidence } from "../website-evidence";
 import { sectorOf } from "../sector";
 import { portalFromText, portalNames } from "../utils";
 import { lodgingLines } from "./lodging";
+import { previewLink } from "../site-preview";
 export type ContactReasonKind =
   | "no_website"
   | "social_only"
@@ -114,7 +115,9 @@ export function buildOutreachContext(
       ? first("website_missing")
       : undefined;
   const events =
-    !lodging && prefs.events && lead.analysis.events_relevant ? first("events") : undefined;
+    !lodging && prefs.events && lead.analysis.events_relevant
+      ? first("events")
+      : undefined;
   const curated = first("curated_social");
   const menuSource = lead.menu_url
     ? lead.sources.find(
@@ -164,11 +167,7 @@ export function buildOutreachContext(
     reasonKind = "poor_website";
     contactReason = "il sito esiste ma appare poco moderno e poco curato";
     addAttributions(visualWeak);
-  } else if (
-    !lodging &&
-    lead.menu_status === "instagram_only" &&
-    menuSource
-  ) {
+  } else if (!lodging && lead.menu_status === "instagram_only" && menuSource) {
     reasonKind = "instagram_menu_only";
     contactReason = "il menu è disponibile principalmente tramite Instagram";
     chosen.push({
@@ -331,6 +330,13 @@ export function senderIntro(l: Lead, p: Preferences, variant = 0) {
 // regenerated draft reads as a new message rather than a new closing question.
 const pick = <T>(pool: T[], variant: number, offset: number) =>
   pool[(variant + offset) % pool.length];
+// The preview is the concrete thing to look at: it closes the pitch line.
+const withPreview = (pitch: string, l: Lead) => {
+  const link = previewLink(l);
+  return link
+    ? `${pitch}, intanto ve l'ho già preparato in anteprima, date un'occhiata ${link}`
+    : pitch;
+};
 export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
   if (!contactable(l)) return "";
   const context = buildOutreachContext(l, p);
@@ -347,7 +353,7 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
           senderIntro(l, p, variant),
           lines.observation,
           lines.why,
-          lines.pitch,
+          withPreview(lines.pitch, l),
           lines.cta,
         ].join("\n")
       : "";
@@ -524,7 +530,7 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
     senderIntro(l, p, variant),
     pick(selected.observations, variant, 0),
     why,
-    pitch,
+    withPreview(pitch, l),
     cta,
   ].join("\n");
 }
@@ -548,10 +554,16 @@ const reasonPatterns: Record<ContactReasonKind, RegExp> = {
 };
 // Every rule the message breaks, in words the model can act on when it retries.
 export function messageProblems(
-  text: string,
+  raw: string,
   lead: Lead,
   prefs: Preferences,
 ): string[] {
+  const full = raw.trim();
+  // The preview link is checked on its own and left out of every other check.
+  const urls = (full.match(/https?:\/\/\S+/g) || []).map((u) =>
+    u.replace(/[.,;:!?)]+$/, ""),
+  );
+  const text = full.replace(/https?:\/\/\S+/g, "");
   const trimmed = text.trim();
   const facts = messageFacts(lead, prefs);
   const context = buildOutreachContext(lead, prefs);
@@ -561,6 +573,23 @@ export function messageProblems(
   const fail = (condition: boolean, problem: string) => {
     if (condition) problems.push(problem);
   };
+  const link = previewLink(lead);
+  fail(
+    !!link && urls.filter((u) => u === link).length !== 1,
+    "Inserisci il link dell'anteprima una sola volta, così com'è",
+  );
+  fail(
+    urls.some((u) => u !== link),
+    link
+      ? "Usa solo il link dell'anteprima, nessun altro link"
+      : "Non inserire link: questo lead non ha un'anteprima",
+  );
+  fail(
+    !!link &&
+      full.includes(link) &&
+      /\p{Extended_Pictographic}️?\s*$/u.test(full.slice(0, full.indexOf(link))),
+    "Niente emoji subito prima del link",
+  );
   const normalize = (value: string) =>
     value
       .normalize("NFKD")
@@ -620,7 +649,7 @@ export function messageProblems(
     ),
     "Non dare cifre o percentuali sulle commissioni",
   );
-  const lines = trimmed.split(/\n/).filter((line) => line.trim());
+  const lines = full.split(/\n/).filter((line) => line.trim());
   fail(
     lines.length < 3 || lines.length > 7,
     "Scrivi 4 o 5 righe separate da un a capo",
@@ -630,7 +659,7 @@ export function messageProblems(
     "Righe troppo lunghe: spezzale con un a capo",
   );
   fail(
-    trimmed.length < 280 || trimmed.length > 950,
+    full.length < 280 || full.length > 950,
     "Lunghezza fuori misura: circa 400–750 caratteri",
   );
   // A short personal introduction: first name only, never a company pitch.

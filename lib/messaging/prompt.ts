@@ -10,6 +10,7 @@ export function outreachInstructions(
   hasPrevious = false,
   distance: ReturnType<typeof senderReach> = { reach: "far", km: null },
   sector: Sector = "locali",
+  previewUrl = "",
 ) {
   const lodging = sector === "alloggi";
   const what = lodging
@@ -40,10 +41,10 @@ export function outreachInstructions(
       : 'Nella seconda riga di\' che hai visto il locale su Google, ad esempio "Ho visto il vostro locale su Google e..." o "Vi ho trovati su Google e...", poi racconta l\'osservazione. Se l\'osservazione viene da Facebook o Instagram, dillo esplicitamente: non far credere di averla vista su Google.',
     lodging
       ? "Nella terza riga spiega con parole tue perché un sito vostro aiuterebbe proprio questa struttura, collegandolo a quello che hai visto: chi cerca dove dormire guarda dal telefono, e con un sito vostro vede camere e posizione e può scrivervi o prenotare direttamente. Puoi dire in generale che così non si passa dalle commissioni dei portali, ma mai con percentuali o cifre. Non usare formule sempre uguali. Non promettere numeri o risultati garantiti."
-      : "Nella terza riga spiega con parole tue perché un sito aiuterebbe proprio questo locale, collegandolo a quello che hai visto e alla categoria: chi li cerca dal telefono deve trovare subito quello che gli serve per sceglierli. Non usare la frase \"oggi la gente prima di uscire cerca dal telefono\" né altre formule sempre uguali, e non aprire la riga con \"per una pizzeria,\" o simili. Non promettere numeri, percentuali o risultati garantiti.",
+      : 'Nella terza riga spiega con parole tue perché un sito aiuterebbe proprio questo locale, collegandolo a quello che hai visto e alla categoria: chi li cerca dal telefono deve trovare subito quello che gli serve per sceglierli. Non usare la frase "oggi la gente prima di uscire cerca dal telefono" né altre formule sempre uguali, e non aprire la riga con "per una pizzeria," o simili. Non promettere numeri, percentuali o risultati garantiti.',
     lodging
-      ? "Nella quarta riga elenca in modo concreto cosa metteresti dentro al sito per questa struttura, per esempio foto delle camere e degli spazi, la colazione se c'è, la posizione e cosa c'è vicino, i contatti diretti e un modo semplice per chiedere disponibilità, e di' che lo fai su misura per loro. Non dire che il sito lo aggiornano da soli, non usare \"aggiornabile\" o \"in autonomia\"."
-      : "Nella quarta riga elenca in modo concreto cosa metteresti dentro al sito, scegliendo cose adatte a questo locale e alla sua categoria (ad esempio per una pizzeria le pizze e il forno, per un bar colazioni e aperitivi, per un pub drink e serate), e di' che lo fai su misura per loro. Non dire che il menu lo aggiornano da soli, non usare \"aggiornabile\" o \"in autonomia\".",
+      ? 'Nella quarta riga elenca in modo concreto cosa metteresti dentro al sito per questa struttura, per esempio foto delle camere e degli spazi, la colazione se c\'è, la posizione e cosa c\'è vicino, i contatti diretti e un modo semplice per chiedere disponibilità, e di\' che lo fai su misura per loro. Non dire che il sito lo aggiornano da soli, non usare "aggiornabile" o "in autonomia".'
+      : 'Nella quarta riga elenca in modo concreto cosa metteresti dentro al sito, scegliendo cose adatte a questo locale e alla sua categoria (ad esempio per una pizzeria le pizze e il forno, per un bar colazioni e aperitivi, per un pub drink e serate), e di\' che lo fai su misura per loro. Non dire che il menu lo aggiornano da soli, non usare "aggiornabile" o "in autonomia".',
     `Una sola osservazione concreta e un'idea collegata. Scrivi come in una conversazione, senza complimenti di circostanza, elenchi di funzionalità o frasi riempitive. Non fingere di essere cliente o di aver visitato il posto. Non scrivere mai ${lodging ? "il nome della struttura" : "il nome del locale"} nel messaggio, nemmeno nel saluto. Rivolgiti sempre a loro con voi e parla ${lodging ? "della vostra struttura" : "del vostro locale"}. Niente codici, UUID, ID o riferimenti E1/E2 nel testo: evidence_ids è l'unico campo per i riferimenti.`,
     'Non usare frasi tecniche o da database come "nella scheda Google non è indicato un sito", "non risulta un sito web" o "il sito non è presente nella scheda". Non usare "sito semplice", "sito base" o "pagina semplice". Descrivi invece il valore concreto: sito vostro, sito fatto bene, ' +
       (lodging
@@ -64,9 +65,9 @@ export function outreachInstructions(
     prefs.qr && context.suggestedFeatures.includes("QR code")
       ? "Puoi citare un QR code collegato al menu."
       : "Non citare QR.",
-    prefs.free_demo
-      ? "Una demo gratuita è consentita, non obbligatoria."
-      : "Non offrire demo, bozze, prove o lavoro gratuito.",
+    previewUrl
+      ? `Alla fine della quarta riga aggiungi ", intanto ve l'ho già preparato in anteprima, date un'occhiata" seguito da uno spazio e da questo link esatto: ${previewUrl} . Scrivi il link una sola volta, così com'è, senza emoji prima del link e senza altri link. Non offrire altre demo o lavoro gratuito oltre all'anteprima.`
+      : `Non inserire link. ${prefs.free_demo ? "Una demo gratuita è consentita, non obbligatoria." : "Non offrire demo, bozze, prove o lavoro gratuito."}`,
     `${lodging ? "Per una struttura puoi proporre che i clienti vi scrivano o prenotino direttamente dal sito." : "Non proporre prenotazioni online."} Punteggiatura poca e naturale, come un messaggio scritto di getto su WhatsApp da una persona simpatica e alla mano, non da un'agenzia: qualche virgola dove viene spontanea (massimo 8), al massimo un punto dentro il messaggio, nessun punto a fine riga. Meglio legare le frasi con e, poi, così che spezzarle con tanti punti.`,
     'Chiudi con una domanda semplice e breve, scritta con parole tue, come "vi interesserebbe?" o "che ne pensate?". Non usare "ti va di parlarne?", "se vi va ne parliamo", "possiamo sentirci", "resto a disposizione" o "senza impegno".',
     hasPrevious || attempt

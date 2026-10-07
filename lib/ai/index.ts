@@ -21,6 +21,7 @@ import {
   validateOutreachMessage,
 } from "../messaging/validation";
 import { sectorOf } from "../sector";
+import { previewLink } from "../site-preview";
 import { outreachInstructions } from "../messaging/prompt";
 const client = () =>
   new OpenAI({
@@ -260,6 +261,7 @@ export async function generateOutreachMessage(
               !!previousMessage,
               senderReach(lead, prefs),
               sectorOf(lead.category),
+              previewLink(lead),
             ),
             feedback.length
               ? `CORREGGI la bozza precedente. Questi errori l'hanno fatta scartare: ${feedback.join("; ")}`

@@ -1,5 +1,6 @@
 import type { Lead, Preferences } from "../model";
 import { sectorOf } from "../sector";
+import { previewLink } from "../site-preview";
 import {
   buildOutreachContext,
   messageFacts,
@@ -56,6 +57,7 @@ export function buildMessagePayload(
       savedReasoning: lead.analysis.reasons,
     },
     preferences: prefs,
+    previewUrl: previewLink(lead),
     previousMessage,
     recentGeneratedMessages: recent.slice(-10),
   };

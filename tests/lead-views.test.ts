@@ -113,3 +113,24 @@ describe("which leads still need a draft", () => {
     expect(needsDraft(closed, defaultPreferences)).toBe(false);
   });
 });
+
+import { shouldDiscard } from "@/lib/lead-views";
+describe("leads not worth keeping after analysis", () => {
+  it("drops leads with no reason to write or a zero score", () => {
+    const [ready, , , , , excellent, closed] = demoLeads();
+    expect(shouldDiscard(ready, defaultPreferences)).toBe(false);
+    expect(shouldDiscard(excellent, defaultPreferences)).toBe(true);
+    expect(shouldDiscard(closed, defaultPreferences)).toBe(true);
+    const unknown = demoLeads()[9];
+    expect(shouldDiscard(unknown, defaultPreferences)).toBe(true);
+  });
+  it("never drops a lead that is already contacted or opted out", () => {
+    const [, , , , , excellent] = demoLeads();
+    expect(
+      shouldDiscard({ ...excellent, status: "contacted" }, defaultPreferences),
+    ).toBe(false);
+    expect(
+      shouldDiscard({ ...excellent, do_not_contact: true }, defaultPreferences),
+    ).toBe(false);
+  });
+});

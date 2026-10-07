@@ -33,7 +33,7 @@ export function JobBanner() {
           : done
             ? job.error
               ? `interrotta: ${job.error}`
-              : `finita: ${count - job.failures.length} di ${count} pronti${job.failures.length ? `, ${job.failures.length} saltati` : ""}`
+              : `finita: ${count - job.failures.length - job.discarded} pronti${job.discarded ? `, ${job.discarded} scartati perché non c'era niente da proporre` : ""}${job.failures.length ? `, ${job.failures.length} saltati per errore` : ""}`
             : count
               ? `${Math.min(job.finished.length + 1, count)} di ${count} · ${job.current}`
               : job.current}

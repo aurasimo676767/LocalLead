@@ -64,3 +64,13 @@ export const needsDraft = (lead: Lead, prefs: Preferences) =>
   contactable(lead) &&
   !lead.messages.length &&
   buildOutreachContext(lead, prefs).status === "ready";
+/**
+ * Nothing to write about: no verified reason for a draft, or a zero score
+ * (closed, excellent site, out of target). Searches drop these straight away.
+ * A lead with contact history or an opt-out is never dropped.
+ */
+export const shouldDiscard = (lead: Lead, prefs: Preferences) =>
+  !contacted(lead) &&
+  !lead.do_not_contact &&
+  (lead.lead_score === 0 ||
+    buildOutreachContext(lead, prefs).status !== "ready");

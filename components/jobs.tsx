@@ -10,7 +10,7 @@ import {
 import { useWorkspace } from "./workspace";
 import type { Lead } from "@/lib/model";
 import type { Sector } from "@/lib/sector";
-import { needsDraft } from "@/lib/lead-views";
+import { needsDraft, shouldDiscard } from "@/lib/lead-views";
 import { retry, runEach, type StepFailure } from "@/lib/job-runner";
 
 export type SearchInput = {
@@ -31,6 +31,8 @@ export type Job = {
   finished: string[];
   current: string;
   skipped: number;
+  // Analysed and dropped: no reason to write to them.
+  discarded: number;
   failures: StepFailure[];
   error: string;
   input?: SearchInput;
@@ -100,6 +102,18 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
                 undefined,
                 id,
               );
+              // Nothing to write about: drop it now and never find it again.
+              if (
+                analyzed.lead &&
+                shouldDiscard(analyzed.lead, live.current.preferences)
+              ) {
+                await live.current.command("delete", {
+                  ids: [id],
+                  remember: true,
+                });
+                update(job.id, (j) => ({ discarded: j.discarded + 1 }));
+                return;
+              }
               update(job.id, () => ({ current: `bozza per ${name(id)}` }));
               await draft(id, analyzed.lead);
             } else {
@@ -149,7 +163,14 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
   const add = (
     job: Omit<
       Job,
-      "id" | "state" | "finished" | "current" | "skipped" | "failures" | "error"
+      | "id"
+      | "state"
+      | "finished"
+      | "current"
+      | "skipped"
+      | "discarded"
+      | "failures"
+      | "error"
     >,
   ) =>
     setJobs((all) => [
@@ -164,6 +185,7 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
         finished: [],
         current: "",
         skipped: 0,
+        discarded: 0,
         failures: [],
         error: "",
       },

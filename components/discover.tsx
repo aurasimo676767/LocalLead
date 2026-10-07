@@ -242,6 +242,9 @@ export function Discover({ sector = "locali" }: { sector?: Sector }) {
                 {skipped > 0
                   ? `${skipped} già trovati o cancellati prima sono stati saltati.`
                   : "Tutti i risultati sono locali che non avevi ancora."}
+                {job?.discarded
+                  ? ` ${job.discarded} scartati perché non c'era niente da proporre: non li ritroverai nelle prossime ricerche.`
+                  : ""}
               </p>
             </div>
           </div>

@@ -7,6 +7,9 @@ create table if not exists public.site_previews (
  content jsonb not null default '{}',
  views integer not null default 0,
  last_viewed_at timestamptz,
+ -- Live Google photos are billed per load: a budget per link and hour.
+ photo_window timestamptz,
+ photo_loads integer not null default 0,
  created_at timestamptz not null default now(),
  expires_at timestamptz not null default now() + interval '60 days'
 );
@@ -22,19 +25,27 @@ revoke all on public.site_previews from anon;
 -- venues return nothing. Visits by the owner are not counted.
 create or replace function public.site_preview(p_slug text, p_count boolean default true)
 returns jsonb language plpgsql security definer set search_path = '' as $$
-declare p public.site_previews; l public.leads; prefs jsonb;
+declare p public.site_previews; l public.leads; prefs jsonb; photos boolean := false;
 begin
  select * into p from public.site_previews where slug = p_slug and expires_at > now();
  if not found then return null; end if;
  select * into l from public.leads where id = p.lead_id;
  if not found or l.do_not_contact or coalesce((l.analysis->>'permanently_closed')::boolean, false) then return null; end if;
  select preferences into prefs from public.profiles where id = p.user_id;
+ -- p_count: a real person is looking (not a link unfurler, not page metadata).
  if p_count and auth.uid() is distinct from p.user_id then
   update public.site_previews set views = views + 1, last_viewed_at = now() where slug = p.slug;
  end if;
+ if p_count then
+  update public.site_previews set
+   photo_loads = case when photo_window is null or photo_window < now() - interval '1 hour' then 1 else photo_loads + 1 end,
+   photo_window = case when photo_window is null or photo_window < now() - interval '1 hour' then now() else photo_window end
+  where slug = p.slug returning photo_loads <= 12 into photos;
+ end if;
  return jsonb_build_object(
   'content', p.content,
-  'place_id', l.place_id,
+  'place_id', case when photos then l.place_id else '' end,
+  'from_google', l.place_id <> '',
   'sender', jsonb_build_object(
    'name', coalesce(prefs->>'sender_name', ''),
    'phone', coalesce(prefs->>'sender_phone', ''),

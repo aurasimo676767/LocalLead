@@ -74,6 +74,8 @@ describe("demo previews", () => {
     expect(demoPreview("abcdefghij12")).toBeNull();
   });
   it("gives contactable demo leads a preview link in the demo workspace", () => {
+    // In the browser the app's own address is used; here it is configured.
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://localhost:3000");
     const leads = demoWorkspace().leads;
     const forno = leads.find((l) => l.name === "Forno delle Nuvole")!;
     expect(previewLink(forno)).toMatch(/\/s\/demo-0$/);

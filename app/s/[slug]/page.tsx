@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { publicConfig } from "@/lib/config";
 import { supabaseServer } from "@/lib/supabase/server";
 import { demoPreview } from "@/lib/demo";
-import { isPreviewBot, type SiteContent } from "@/lib/site-preview";
+import { isPreviewBot, placeLabel, type SiteContent } from "@/lib/site-preview";
 import { placePhotos } from "@/lib/providers/places/photos";
 import {
   PreviewUnavailable,
@@ -16,6 +16,7 @@ type Preview = {
   content: SiteContent;
   place_id: string;
   sender: PreviewSender;
+  from_google?: boolean;
 };
 /** Public read through the secret link only; counting is the database's job. */
 async function load(slug: string, count: boolean): Promise<Preview | null> {
@@ -40,7 +41,7 @@ export async function generateMetadata({
   const p = await load((await params).slug, false);
   return {
     title: p
-      ? `${p.content.name} · ${p.content.category} a ${p.content.city}`
+      ? `${p.content.name} · ${placeLabel(p.content.category)} a ${p.content.city}`
       : "Anteprima non disponibile",
     description: p?.content.copy.intro,
     robots: { index: false, follow: false },
@@ -54,8 +55,14 @@ export default async function Page({
   const agent = (await headers()).get("user-agent") || "";
   const p = await load((await params).slug, !isPreviewBot(agent));
   if (!p) return <PreviewUnavailable />;
+  // The database hands out the place only to real visitors within the hourly budget.
   const photos = await placePhotos(p.place_id);
   return (
-    <SitePreviewPage content={p.content} sender={p.sender} photos={photos} />
+    <SitePreviewPage
+      content={p.content}
+      sender={p.sender}
+      photos={photos}
+      fromGoogle={!!p.from_google}
+    />
   );
 }

@@ -297,6 +297,35 @@ describe("actual Postgres migration, RLS and atomic dedup", () => {
       expect(await read("abcdefghij12")).toBeNull();
       await asUser(alice);
     });
+    it("loads billed photos for real visitors only, at most 12 times an hour", async () => {
+      await asUser(alice);
+      const shop2 = newLead({
+        name: "Bar Foto",
+        city: "Vittoria",
+        category: "Bar",
+        place_id: "place-photos",
+        user_id: alice,
+      });
+      await save(shop2);
+      await db.query(
+        "insert into site_previews(slug,lead_id,user_id,content) values ('photosphotos',$1,$2,'{}')",
+        [shop2.id, alice],
+      );
+      await asAnon();
+      // Link unfurlers and metadata: no photos, but the page still credits Google.
+      const bot = (await read("photosphotos", false)) as unknown as {
+        place_id: string;
+        from_google: boolean;
+      };
+      expect(bot.place_id).toBe("");
+      expect(bot.from_google).toBe(true);
+      const places: string[] = [];
+      for (let i = 0; i < 13; i++)
+        places.push((await read("photosphotos"))!.place_id);
+      expect(places.slice(0, 12).every((p) => p === "place-photos")).toBe(true);
+      expect(places[12]).toBe("");
+      await asUser(alice);
+    });
     it("rejects guessable slugs", async () => {
       await asUser(alice);
       const other = newLead({

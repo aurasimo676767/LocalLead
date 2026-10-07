@@ -86,11 +86,15 @@ export function Settings() {
               step={10}
               value={prefs.site_price}
               onChange={(e) =>
+                // An emptied field keeps the last price: prospects never see "0 €".
                 setPrefs({
                   ...prefs,
                   site_price: Math.max(
-                    0,
-                    Math.min(10000, Math.round(Number(e.target.value) || 0)),
+                    1,
+                    Math.min(
+                      10000,
+                      Math.round(Number(e.target.value) || prefs.site_price),
+                    ),
                   ),
                 })
               }

@@ -1,4 +1,4 @@
-import type { Lead, SitePreview } from "./model";
+import { contactable, type Lead, type SitePreview } from "./model";
 import { sectorOf, type Sector } from "./sector";
 import { normalizePhone } from "./utils";
 
@@ -29,19 +29,52 @@ export function newSlug() {
   const bytes = crypto.getRandomValues(new Uint8Array(12));
   return [...bytes].map((b) => alphabet[b % alphabet.length]).join("");
 }
+const absolute = (value: string) =>
+  /^https?:\/\/[^/\s]+/i.test(value.trim())
+    ? value.trim().replace(/\/+$/, "")
+    : "";
+/**
+ * Where preview links point. Only an absolute address works inside a WhatsApp
+ * message; in the browser the app's own address is a safe fallback (demo).
+ */
 export const previewBase = () =>
-  (
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    ""
-  ).replace(/\/+$/, "");
+  absolute(process.env.NEXT_PUBLIC_SITE_URL || "") ||
+  absolute(process.env.NEXT_PUBLIC_APP_URL || "") ||
+  (typeof window !== "undefined" ? window.location.origin : "");
 export const previewUrl = (slug: string) => `${previewBase()}/s/${slug}`;
-/** The link to put in a draft, or "" when the lead has no live preview. */
+/** The link to put in a draft, or "" when there is no live, reachable preview. */
 export function previewLink(lead: Lead, now = new Date()) {
   const p = lead.preview;
-  if (!p?.slug || new Date(p.expires_at) <= now) return "";
-  return previewUrl(p.slug);
+  if (!p?.slug || new Date(p.expires_at) <= now || !contactable(lead))
+    return "";
+  return previewBase() ? previewUrl(p.slug) : "";
 }
+/** The category as a visitor should read it: never the internal "Altro food". */
+export const placeLabel = (category: string) =>
+  category === "Altro food" ? "Locale" : category;
+// "la nostra pizzeria", "il nostro bar": the article follows the noun.
+const ourPlaces: Record<string, string> = {
+  Pizzeria: "la nostra pizzeria",
+  Panineria: "la nostra panineria",
+  Ristorante: "il nostro ristorante",
+  Bar: "il nostro bar",
+  Pub: "il nostro pub",
+  "Cocktail bar": "il nostro cocktail bar",
+  Pasticceria: "la nostra pasticceria",
+  Gelateria: "la nostra gelateria",
+  Panificio: "il nostro panificio",
+  Gastronomia: "la nostra gastronomia",
+  Rosticceria: "la nostra rosticceria",
+  "B&B": "il nostro b&b",
+  "Casa vacanza": "la nostra casa vacanze",
+};
+const ourPlace = (category: string) =>
+  ourPlaces[category] || "il nostro locale";
+const thisIs = (place: string) =>
+  `${place.startsWith("la ") ? "Questa è" : "Questo è"} ${place}`;
+/** A stable variant per lead, so venues without AI copy do not all read the same. */
+export const copyVariant = (id: string) =>
+  [...id].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 0) % 60;
 /** Only what the venue already shows the public: never notes, scores or drafts. */
 export function siteContent(lead: Lead, copy: SiteCopy): SiteContent {
   return {
@@ -74,14 +107,14 @@ export function fallbackCopy(lead: Lead, variant = 0): SiteCopy {
   const v = ((variant % 60) + 60) % 60;
   const city = lead.city.trim();
   const where = city ? ` a ${city}` : "";
+  const place = ourPlace(lead.category);
   if (sectorOf(lead.category) === "alloggi") {
-    const kind = lead.category === "B&B" ? "b&b" : "casa vacanze";
     return {
       title: pick(
         [
           `Il vostro posto per dormire${where}`,
           "Benvenuti, fate come a casa vostra!",
-          `Ciao! Siamo la vostra ${kind}${where}`,
+          `Ciao! ${thisIs(place)}`,
         ],
         v,
         0,
@@ -115,14 +148,13 @@ export function fallbackCopy(lead: Lead, variant = 0): SiteCopy {
       ),
     };
   }
-  const kind = lead.category.toLocaleLowerCase("it");
   const products = productCategories.includes(lead.category);
   return {
     title: pick(
       [
         "Ciao, benvenuti da noi!",
         "Che bello vederti da queste parti!",
-        `Questa è la nostra ${kind}, ti aspettiamo`,
+        `${thisIs(place)}, ti aspettiamo`,
       ],
       v,
       0,
@@ -169,6 +201,9 @@ export function fallbackCopy(lead: Lead, variant = 0): SiteCopy {
 // Facts we never have evidence for: numbers, years, rankings, ingredients, views.
 const invented =
   /\d|\b(?:miglior[ei]?|più buon[aoei]|il top|numero uno|unic[oaie]|da generazioni|tradizion\w*|anni di|forno a legna|a legna|vista mare|sul mare|due passi|centro storico|premiat\w*|recension\w*|stelle|famos\w*|rinomat\w*|artigianal\w*|km zero|biologic\w*|ingredienti|selezionat\w*|eccellenz\w*|garantit\w*)/i;
+// Claims about taste, history, ingredients, views and services: none of it is in our data.
+const inventedMore =
+  /(?<!\p{L})(?:più \p{L}+|\p{L}*issim\p{L}*|vista|panoram\p{L}*|terrazz\p{L}*|giardin\p{L}*|colazion\p{L}*|parchegg\p{L}*|wi-?fi|piscin\p{L}*|nonn\p{L}*|ricett\p{L}*|come una volta|da sempre|dal \p{L}+|fresc\p{L}*|impast\p{L}*|lievit\p{L}*|mozzarell\p{L}*|bufal\p{L}*)/iu;
 // Brochure words: the page must read as written by the owner, not by an agency.
 const agency =
   /\b(?:qualit|esperienz|passion|professional|soluzion|offriamo|servizi|per qualsiasi informazion|non esitate|siamo liet|saremo (?:felici|liet)|lieti di)/i;
@@ -186,7 +221,7 @@ export function copyProblems(copy: SiteCopy, venue = "") {
     const [min, max] = limits[key];
     if (text.length < min || text.length > max)
       problems.push(`${key}: lunghezza tra ${min} e ${max} caratteri`);
-    const hit = text.match(invented);
+    const hit = text.match(invented) || text.match(inventedMore);
     if (hit)
       problems.push(
         `${key}: niente fatti che non conosciamo ("${hit[0]}"), scrivi solo frasi alla mano`,
@@ -211,7 +246,7 @@ export function copyProblems(copy: SiteCopy, venue = "") {
 }
 // Link unfurlers fetch the page when a message is written or received.
 const bots =
-  /bot|crawl|spider|whatsapp|facebookexternalhit|facebot|telegram|slack|discord|preview|embedly|skype|linkedin|pinterest|vkshare|headless/i;
+  /^whatsapp\/|facebookexternalhit|facebot|telegrambot|twitterbot|slackbot|discordbot|linkedinbot|skypeuripreview|embedly|vkshare|pinterestbot|googlebot|bingbot|applebot|yandex|bot\/|crawl|spider|headless/i;
 export const isPreviewBot = (userAgent: string) =>
   !userAgent.trim() || bots.test(userAgent);
 /** "Mi interessa": a chat to the sender with the text already written. */

@@ -16,13 +16,7 @@ import {
   discoverySchema,
   settingsPreferences,
 } from "@/lib/validation";
-import {
-  contactable,
-  newLead,
-  now,
-  uid,
-  type Preferences,
-} from "@/lib/model";
+import { contactable, newLead, now, uid, type Preferences } from "@/lib/model";
 import { manualSources, patchLead } from "@/lib/lead-actions";
 import { placesProvider } from "@/lib/providers/places";
 import { enrichLead } from "@/lib/enrichment";
@@ -306,6 +300,8 @@ export async function POST(req: NextRequest) {
         .order("created_at", { ascending: false })
         .limit(15);
       if (error) throw new Error("Cronologia messaggi non disponibile");
+      // One time budget for preview and draft: the function stops at 60 s.
+      const startedAt = Date.now();
       // The preview link goes in the draft; without it the draft goes out as before.
       if (contactable(lead) && context.status === "ready")
         lead.preview = (await ensurePreview(db, lead)) ?? lead.preview;
@@ -313,6 +309,7 @@ export async function POST(req: NextRequest) {
         lead,
         preferences,
         (recent || []).map((m) => m.text).reverse(),
+        startedAt,
       );
       warning = generated.warning;
       if (generated.text)

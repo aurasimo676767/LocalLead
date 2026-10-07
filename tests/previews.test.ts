@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { newLead, type Lead } from "@/lib/model";
-import { copyProblems, fallbackCopy } from "@/lib/site-preview";
+import { copyProblems, copyVariant, fallbackCopy } from "@/lib/site-preview";
 
 const mocks = vi.hoisted(() => ({ parse: vi.fn() }));
 vi.mock("openai", () => ({
@@ -64,7 +64,9 @@ describe("friendly AI copy", () => {
       output_parsed: { ...good, title: "La pizza più buona di Vittoria" },
     });
     const l = lead();
-    expect(await generateSiteCopy(l)).toEqual(fallbackCopy(l));
+    expect(await generateSiteCopy(l)).toEqual(
+      fallbackCopy(l, copyVariant(l.id)),
+    );
     expect(mocks.parse).toHaveBeenCalledTimes(2);
   });
   it("never calls the AI without a key or for demo leads", async () => {

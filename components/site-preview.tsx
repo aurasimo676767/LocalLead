@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element -- Google photo URLs are live and change: next/image would cache them. */
 import styles from "./site-preview.module.css";
-import { interestUrl, type SiteContent } from "@/lib/site-preview";
+import { interestUrl, placeLabel, type SiteContent } from "@/lib/site-preview";
 import type { PlacePhoto } from "@/lib/providers/places/photos";
 import { safeUrl } from "@/lib/utils";
 
@@ -37,10 +37,13 @@ export function SitePreviewPage({
   content: c,
   sender,
   photos,
+  fromGoogle = false,
 }: {
   content: SiteContent;
   sender: PreviewSender;
   photos: PlacePhoto[];
+  // Facts come from Google Places: credit it even without photos.
+  fromGoogle?: boolean;
 }) {
   const lodging = c.sector === "alloggi";
   const products = productCategories.includes(c.category);
@@ -78,7 +81,7 @@ export function SitePreviewPage({
         <div className={styles.heroShade} />
         <div className={styles.heroText}>
           <p className={styles.kicker}>
-            {c.category} a {c.city}
+            {placeLabel(c.category)} a {c.city}
           </p>
           <h1>{c.name}</h1>
           <p className={styles.title}>{c.copy.title}</p>
@@ -173,9 +176,10 @@ export function SitePreviewPage({
             ))}
           </ul>
         </section>
-        {authors.length > 0 && (
+        {fromGoogle && (
           <p className={styles.credits}>
-            Foto da Google Maps:{" "}
+            Informazioni da Google Maps.
+            {authors.length > 0 && " Foto da Google Maps: "}
             {authors.map((p, i) => (
               <span key={p.url}>
                 {i > 0 && ", "}

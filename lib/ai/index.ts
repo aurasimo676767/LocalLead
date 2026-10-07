@@ -179,6 +179,8 @@ export async function generateOutreachMessage(
   lead: Lead,
   prefs: Preferences,
   recent: string[],
+  // When the request began: the preview may already have used part of the time.
+  startedAt = Date.now(),
 ) {
   if (!contactable(lead))
     throw new Error(
@@ -242,7 +244,7 @@ export async function generateOutreachMessage(
   if (!process.env.OPENAI_API_KEY || lead.is_demo || !evidence.length)
     return fallback();
   // The message model takes ~7s per draft: a tight limit turned slow replies into template text.
-  const deadline = Date.now() + 45_000;
+  const deadline = startedAt + 45_000;
   // Each retry sends back the exact rules the previous draft broke.
   for (let attempt = 0; attempt < 3; attempt++) {
     const remaining = deadline - Date.now();

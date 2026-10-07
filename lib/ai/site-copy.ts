@@ -4,7 +4,12 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import type { Lead } from "../model";
 import { sectorOf } from "../sector";
-import { copyProblems, fallbackCopy, type SiteCopy } from "../site-preview";
+import {
+  copyProblems,
+  copyVariant,
+  fallbackCopy,
+  type SiteCopy,
+} from "../site-preview";
 
 const schema = z.object({
   title: z.string(),
@@ -24,10 +29,11 @@ const instructions = (lodging: boolean) =>
   ].join("\n");
 /** Warm page texts from the AI; hand-written copy whenever it cannot deliver. */
 export async function generateSiteCopy(lead: Lead): Promise<SiteCopy> {
-  if (!process.env.OPENAI_API_KEY || lead.is_demo) return fallbackCopy(lead);
+  if (!process.env.OPENAI_API_KEY || lead.is_demo)
+    return fallbackCopy(lead, copyVariant(lead.id));
   const client = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
-    timeout: 20000,
+    timeout: 10000,
     maxRetries: 0,
   });
   const model = process.env.OPENAI_MESSAGE_MODEL || "gpt-5.6-luna";
@@ -35,40 +41,50 @@ export async function generateSiteCopy(lead: Lead): Promise<SiteCopy> {
   let feedback: string[] = [];
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const r = await client.responses.parse({
-        model,
-        reasoning: { effort: "low" },
-        store: false,
-        max_output_tokens: 800,
-        instructions: [
-          instructions(lodging),
-          feedback.length
-            ? `CORREGGI: il testo precedente è stato scartato per questi motivi: ${feedback.join("; ")}`
-            : "",
-        ]
-          .filter(Boolean)
-          .join("\n"),
-        input: [
-          {
-            role: "user",
-            content: JSON.stringify({
-              name: lead.name,
-              category: lead.category,
-              city: lead.city,
-              hasMenu: !!lead.menu_url,
-            }),
-          },
-        ],
-        text: { format: zodTextFormat(schema, "site_copy") },
-      });
+      const r = await client.responses.parse(
+        {
+          model,
+          reasoning: { effort: "low" },
+          store: false,
+          max_output_tokens: 800,
+          instructions: [
+            instructions(lodging),
+            feedback.length
+              ? `CORREGGI: il testo precedente è stato scartato per questi motivi: ${feedback.join("; ")}`
+              : "",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+          input: [
+            {
+              role: "user",
+              content: JSON.stringify({
+                name: lead.name,
+                category: lead.category,
+                city: lead.city,
+                hasMenu: !!lead.menu_url,
+              }),
+            },
+          ],
+          text: { format: zodTextFormat(schema, "site_copy") },
+        },
+        // The draft still has to be written in the same request: keep this short.
+        { timeout: 10_000 },
+      );
       const copy = schema.parse(r.output_parsed);
       feedback = copyProblems(copy, lead.name);
       if (!feedback.length) return copy;
       console.warn("[AI] site copy rejected", { id: lead.id, feedback });
-    } catch {
+    } catch (error) {
       feedback = ["Output non valido: rispetta lo schema e le regole"];
       console.warn("[AI] site copy failed", { id: lead.id, attempt });
+      // A slow or unreachable provider is not fixed by asking again.
+      if (
+        (error instanceof Error && /Connection|Timeout/.test(error.name)) ||
+        (typeof error === "object" && error !== null && "status" in error)
+      )
+        break;
     }
   }
-  return fallbackCopy(lead);
+  return fallbackCopy(lead, copyVariant(lead.id));
 }

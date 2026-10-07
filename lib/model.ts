@@ -262,7 +262,7 @@ export const preferencesSchema = z.object({
   sender_label: z.string().max(120).default(""),
   // For the "Mi interessa" button and the price line on site previews.
   sender_phone: z.string().trim().max(40).default(""),
-  site_price: z.number().int().min(0).max(10000).default(200),
+  site_price: z.number().int().min(1).max(10000).default(200),
 });
 export type Preferences = z.infer<typeof preferencesSchema>;
 export const defaultPreferences = preferencesSchema.parse({});

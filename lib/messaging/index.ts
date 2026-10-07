@@ -587,7 +587,9 @@ export function messageProblems(
   fail(
     !!link &&
       full.includes(link) &&
-      /\p{Extended_Pictographic}️?\s*$/u.test(full.slice(0, full.indexOf(link))),
+      /[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}⃣][️‍]*\s*$/u.test(
+        full.slice(0, full.indexOf(link)),
+      ),
     "Niente emoji subito prima del link",
   );
   const normalize = (value: string) =>
@@ -649,7 +651,8 @@ export function messageProblems(
     ),
     "Non dare cifre o percentuali sulle commissioni",
   );
-  const lines = full.split(/\n/).filter((line) => line.trim());
+  // Lengths ignore the link: it is not the message's own words.
+  const lines = trimmed.split(/\n/).filter((line) => line.trim());
   fail(
     lines.length < 3 || lines.length > 7,
     "Scrivi 4 o 5 righe separate da un a capo",
@@ -659,7 +662,7 @@ export function messageProblems(
     "Righe troppo lunghe: spezzale con un a capo",
   );
   fail(
-    full.length < 280 || full.length > 950,
+    trimmed.length < 280 || trimmed.length > 950,
     "Lunghezza fuori misura: circa 400–750 caratteri",
   );
   // A short personal introduction: first name only, never a company pitch.

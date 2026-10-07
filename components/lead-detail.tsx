@@ -28,6 +28,7 @@ import { SiteAuditPanel } from "./site-audit";
 import { statuses, statusLabels, contactable, type Lead } from "@/lib/model";
 import { hotReasons, scoreParts, worthwhile } from "@/lib/scoring";
 import { detailQueue, sectorHome } from "@/lib/lead-views";
+import { previewLink, previewSummary } from "@/lib/site-preview";
 import { sectorOf } from "@/lib/sector";
 import { buildOutreachContext, fallbackMessage } from "@/lib/messaging";
 import {
@@ -177,7 +178,9 @@ function Detail({ lead: l, scan }: { lead: Lead; scan?: boolean }) {
       <div className="detail-nav">
         <Link href={sectorHome(sector)} className="back-link">
           <ArrowLeft size={15} />{" "}
-          <span>{sector === "alloggi" ? "Tutti gli alloggi" : "Tutti i lead"}</span>
+          <span>
+            {sector === "alloggi" ? "Tutti gli alloggi" : "Tutti i lead"}
+          </span>
         </Link>
         <div className="detail-nav-actions">
           {position >= 0 && (
@@ -370,6 +373,42 @@ function Detail({ lead: l, scan }: { lead: Lead; scan?: boolean }) {
               </p>
             )}
           </section>
+          {l.preview && previewLink(l) && (
+            <section className="panel">
+              <div className="panel-title">
+                <h2>Anteprima sito</h2>
+                <span className="muted push-right">
+                  {previewSummary(l.preview)}
+                </span>
+              </div>
+              <p className="muted">
+                Il locale vede il suo sito con i suoi dati e le foto di Google.
+                Il link scade il{" "}
+                {new Date(l.preview.expires_at).toLocaleDateString("it-IT")}.
+              </p>
+              <div className="message-tools">
+                {/* Same origin as the app: you are signed in, so your visit is not counted. */}
+                <a
+                  className="button secondary small"
+                  href={`/s/${l.preview.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink size={14} /> Apri
+                </a>
+                <button
+                  className="button secondary small"
+                  onClick={() =>
+                    void navigator.clipboard
+                      .writeText(previewLink(l))
+                      .then(() => notify("Link dell’anteprima copiato"))
+                  }
+                >
+                  <Copy size={14} /> Copia link
+                </button>
+              </div>
+            </section>
+          )}
           <SiteAuditPanel lead={l} />
           <section className="panel">
             <div className="panel-title">
@@ -425,9 +464,9 @@ function Detail({ lead: l, scan }: { lead: Lead; scan?: boolean }) {
                 {scoreParts(l).capped
                   ? `, limitato a ${l.lead_score} (sito già buono, dati poco affidabili o lead escluso)`
                   : ""}
-                . Conta solo il bisogno più forte; contatti e
-                attività contano solo se c’è un bisogno verificato. Solo
-                evidenze con confidence ≥ 70%.
+                . Conta solo il bisogno più forte; contatti e attività contano
+                solo se c’è un bisogno verificato. Solo evidenze con confidence
+                ≥ 70%.
               </p>
               {l.analysis.reasons.map((r, i) => (
                 <div className="score-breakdown" key={i}>

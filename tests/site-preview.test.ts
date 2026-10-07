@@ -72,8 +72,10 @@ describe("public content", () => {
 describe("friendly copy without invented facts", () => {
   const ok = {
     title: "La pizza come piace a noi",
-    intro: "Passa quando vuoi, ti aspettiamo con tanta voglia di chiacchierare!",
-    offer: "Dai un'occhiata al menu con calma e scegli la tua, poi chiamaci o vieni direttamente.",
+    intro:
+      "Passa quando vuoi, ti aspettiamo con tanta voglia di chiacchierare!",
+    offer:
+      "Dai un'occhiata al menu con calma e scegli la tua, poi chiamaci o vieni direttamente.",
     contact: "Per qualsiasi cosa chiamaci, ti rispondiamo volentieri.",
   };
   it("accepts a casual text with no facts", () =>
@@ -84,7 +86,10 @@ describe("friendly copy without invented facts", () => {
     ["intro", "Cuociamo tutto nel nostro forno a legna, passa a trovarci!"],
     ["intro", "Siamo a due passi dal mare, passa a trovarci quando vuoi!"],
     ["contact", "Abbiamo 4,8 stelle su Google, chiamaci quando vuoi!"],
-    ["title", "Un titolo davvero lunghissimo che non entra mai nella prima schermata"],
+    [
+      "title",
+      "Un titolo davvero lunghissimo che non entra mai nella prima schermata",
+    ],
   ] as const)("rejects %s: %s", (field, text) =>
     expect(copyProblems({ ...ok, [field]: text }).length).toBeGreaterThan(0),
   );
@@ -122,5 +127,48 @@ describe("visitors", () => {
       "Ciao Simone, ho visto l'anteprima del sito per Pizzeria X",
     );
     expect(interestUrl("", "Simone", "Pizzeria X")).toBe("");
+  });
+});
+
+describe("preview summary and settings", () => {
+  it("says whether the venue opened the preview", async () => {
+    const { previewSummary } = await import("@/lib/site-preview");
+    const base = {
+      slug: "abcdefghij12",
+      views: 0,
+      last_viewed_at: null,
+      expires_at: future,
+    };
+    expect(previewSummary(base)).toBe("non ancora aperta");
+    expect(
+      previewSummary({
+        ...base,
+        views: 3,
+        last_viewed_at: "2026-10-05T10:00:00.000Z",
+      }),
+    ).toBe("aperta 3 volte, ultima il 05/10");
+    expect(
+      previewSummary({
+        ...base,
+        views: 1,
+        last_viewed_at: "2026-10-05T10:00:00.000Z",
+      }),
+    ).toBe("aperta 1 volta, ultima il 05/10");
+  });
+  it("normalizes the sender's WhatsApp number and checks the price", async () => {
+    const { settingsPreferences } = await import("@/lib/validation");
+    expect(
+      settingsPreferences({ sender_phone: "333 123 4567", site_price: 200 })
+        .sender_phone,
+    ).toBe("+393331234567");
+    expect(settingsPreferences({ sender_phone: "" }).sender_phone).toBe("");
+    expect(settingsPreferences({}).site_price).toBe(200);
+    expect(() => settingsPreferences({ sender_phone: "123" })).toThrow(
+      /WhatsApp/,
+    );
+    expect(() => settingsPreferences({ sender_phone: "0932 123456" })).toThrow(
+      /cellulare/,
+    );
+    expect(() => settingsPreferences({ site_price: -5 })).toThrow();
   });
 });

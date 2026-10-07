@@ -11,13 +11,16 @@ import {
   getPreferences,
   saveLead,
 } from "@/lib/supabase/repository";
-import { inputSchema, discoverySchema } from "@/lib/validation";
+import {
+  inputSchema,
+  discoverySchema,
+  settingsPreferences,
+} from "@/lib/validation";
 import {
   contactable,
   newLead,
   now,
   uid,
-  preferencesSchema,
   type Preferences,
 } from "@/lib/model";
 import { manualSources, patchLead } from "@/lib/lead-actions";
@@ -167,7 +170,7 @@ export async function POST(req: NextRequest) {
     );
     if (body.action === "settings") {
       // Coordinates always come from the lookup, never from the client.
-      const parsed = preferencesSchema.parse(body.data);
+      const parsed = settingsPreferences(body.data);
       const current = await getPreferences(db, user.id);
       const prefs =
         parsed.sender_city.trim() === current.sender_place

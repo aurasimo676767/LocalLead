@@ -21,7 +21,11 @@ import {
 } from "@/lib/model";
 import { demoWorkspace, demoLeads } from "@/lib/demo";
 import { manualSources, patchLead } from "@/lib/lead-actions";
-import { inputSchema, discoverySchema } from "@/lib/validation";
+import {
+  inputSchema,
+  discoverySchema,
+  settingsPreferences,
+} from "@/lib/validation";
 import { dedupKeys, duplicate, normalizePhone } from "@/lib/utils";
 import { scoreLead } from "@/lib/scoring";
 import {
@@ -141,8 +145,7 @@ export function WorkspaceProvider({
       stored ? JSON.parse(stored) : ref.current,
     );
     let result: Result = {};
-    if (action === "settings")
-      current.preferences = preferencesSchema.parse(data);
+    if (action === "settings") current.preferences = settingsPreferences(data);
     else if (action === "discover") {
       const input = discoverySchema.parse(data);
       const results: { lead: Lead; duplicate: boolean }[] = [];

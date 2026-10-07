@@ -4,6 +4,8 @@ import {
   statuses,
   whatsappConfidences,
   websiteStatuses,
+  preferencesSchema,
+  type Preferences,
 } from "./model";
 import { safeUrl, hostIs, normalizePhone, isLandlinePhone } from "./utils";
 const url = z
@@ -70,3 +72,16 @@ export const discoverySchema = z.object({
   filter: z.enum(["all", "none", "weak_or_none", "weak"]).default("all"),
 });
 export type LeadInput = z.infer<typeof inputSchema>;
+/** Settings as saved: the WhatsApp number for "Mi interessa" must be a mobile. */
+export function settingsPreferences(raw: unknown): Preferences {
+  const parsed = preferencesSchema.parse(raw);
+  if (!parsed.sender_phone) return parsed;
+  const phone = normalizePhone(parsed.sender_phone);
+  if (!phone)
+    throw new Error(
+      "Numero WhatsApp non valido: scrivilo con il prefisso, es. 333 123 4567",
+    );
+  if (isLandlinePhone(phone))
+    throw new Error("Per WhatsApp serve un numero di cellulare");
+  return { ...parsed, sender_phone: phone };
+}

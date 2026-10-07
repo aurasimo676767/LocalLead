@@ -61,6 +61,41 @@ export function Settings() {
               <option>neutro</option>
             </select>
           </Field>
+          <Field
+            label="Il tuo numero WhatsApp"
+            hint="Per il pulsante «Mi interessa» delle anteprime: il locale ti scrive con un tocco. Senza numero il pulsante non compare."
+          >
+            <input
+              value={prefs.sender_phone}
+              maxLength={40}
+              inputMode="tel"
+              placeholder="es. 333 123 4567"
+              onChange={(e) =>
+                setPrefs({ ...prefs, sender_phone: e.target.value })
+              }
+            />
+          </Field>
+          <Field
+            label="Prezzo del sito (€)"
+            hint="Compare sull'anteprima: «il sito completo a … €, una volta sola»."
+          >
+            <input
+              type="number"
+              min={0}
+              max={10000}
+              step={10}
+              value={prefs.site_price}
+              onChange={(e) =>
+                setPrefs({
+                  ...prefs,
+                  site_price: Math.max(
+                    0,
+                    Math.min(10000, Math.round(Number(e.target.value) || 0)),
+                  ),
+                })
+              }
+            />
+          </Field>
           {(
             [
               [

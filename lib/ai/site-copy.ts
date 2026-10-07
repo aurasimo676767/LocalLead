@@ -15,7 +15,8 @@ const schema = z.object({
 const instructions = (lodging: boolean) =>
   [
     "Scrivi i testi di un'anteprima di sito come se li avesse scritti il titolare di suo pugno: voce dell'attività (noi), tono alla mano, simpatico e caldo, frasi semplici e naturali, niente tono da agenzia. Non deve sembrare un testo automatico.",
-    `Campi: title (8–60 caratteri, il titolo grande in alto), intro (20–220, due frasi di benvenuto), offer (20–200, ${lodging ? "invita a scrivere per sapere se la camera è libera nei loro giorni" : "invita a dare un'occhiata al menu o a quello che preparano"}), contact (20–160, invito a chiamare o scrivere).`,
+    'Scrivi come parleresti a un amico, con un filo di ironia leggera. Evita le frasi fatte: per qualsiasi informazione, non esitate, siamo lieti, saremo felici. Esempi del tono (non copiarli): "Fame? Sei nel posto giusto", "Passa quando vuoi, qui si sta bene e si chiacchiera volentieri".',
+    `Campi: title (8–60 caratteri, una frase breve e simpatica: non ripetere nome, categoria o città, sono già scritti sopra), intro (20–220, due frasi di benvenuto), offer (20–200, ${lodging ? "invita a scrivere per sapere se la camera è libera nei loro giorni" : "invita a dare un'occhiata al menu o a quello che preparano"}), contact (20–160, invito a chiamare o scrivere).`,
     "Non inventare niente: niente numeri, anni, cifre, superlativi (il migliore, il più buono), ingredienti, forni, viste, distanze, posizione rispetto al centro o al mare, premi, recensioni, stelle, tradizioni, servizi (parcheggio, wifi, colazione, consegna) che non sono nei dati.",
     "Evita qualità, esperienza, passione, professionalità, soluzione, offriamo, servizio.",
     "Non scrivere indirizzo, orari o telefono: la pagina li mostra a parte. Puoi usare nome, categoria e città. Al massimo una emoji in tutto.",
@@ -61,7 +62,7 @@ export async function generateSiteCopy(lead: Lead): Promise<SiteCopy> {
         text: { format: zodTextFormat(schema, "site_copy") },
       });
       const copy = schema.parse(r.output_parsed);
-      feedback = copyProblems(copy);
+      feedback = copyProblems(copy, lead.name);
       if (!feedback.length) return copy;
       console.warn("[AI] site copy rejected", { id: lead.id, feedback });
     } catch {

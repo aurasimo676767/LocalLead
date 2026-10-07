@@ -182,3 +182,23 @@ describe("loading leads", () => {
     expect(l.preview).toBeUndefined();
   });
 });
+
+describe("copy that sounds like a person", () => {
+  it("rejects stock phrases", () => {
+    for (const contact of [
+      "Per qualsiasi informazione chiamateci quando volete.",
+      "Non esitate a contattarci, saremo felici di sentirvi.",
+      "Siamo lieti di accogliervi, scriveteci pure quando volete.",
+    ])
+      expect(copyProblems({ ...good, contact }).length).toBeGreaterThan(0);
+  });
+  it("rejects a title that repeats the venue's name, shown just above", () => {
+    expect(
+      copyProblems(
+        { ...good, title: "Pizzeria Il Vesuvio a Comiso" },
+        "Pizzeria Il Vesuvio",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(copyProblems(good, "Pizzeria Il Vesuvio")).toEqual([]);
+  });
+});

@@ -171,7 +171,7 @@ const invented =
   /\d|\b(?:miglior[ei]?|più buon[aoei]|il top|numero uno|unic[oaie]|da generazioni|tradizion\w*|anni di|forno a legna|a legna|vista mare|sul mare|due passi|centro storico|premiat\w*|recension\w*|stelle|famos\w*|rinomat\w*|artigianal\w*|km zero|biologic\w*|ingredienti|selezionat\w*|eccellenz\w*|garantit\w*)/i;
 // Brochure words: the page must read as written by the owner, not by an agency.
 const agency =
-  /\b(?:qualit|esperienz|passion|professional|soluzion|offriamo|servizi)/i;
+  /\b(?:qualit|esperienz|passion|professional|soluzion|offriamo|servizi|per qualsiasi informazion|non esitate|siamo liet|saremo (?:felici|liet)|lieti di)/i;
 const limits: Record<keyof SiteCopy, [number, number]> = {
   title: [8, 60],
   intro: [20, 220],
@@ -179,7 +179,7 @@ const limits: Record<keyof SiteCopy, [number, number]> = {
   contact: [20, 160],
 };
 /** Why a preview text cannot be used; empty when it is fine. */
-export function copyProblems(copy: SiteCopy) {
+export function copyProblems(copy: SiteCopy, venue = "") {
   const problems: string[] = [];
   for (const key of Object.keys(limits) as (keyof SiteCopy)[]) {
     const text = (copy[key] || "").trim();
@@ -197,6 +197,16 @@ export function copyProblems(copy: SiteCopy) {
         `${key}: "${stiff[0]}" suona da agenzia, scrivi come parlerebbe il titolare`,
       );
   }
+  // The name, category and city are printed right above the title.
+  const plain = (v: string) =>
+    v.normalize("NFKD").replace(/\p{M}/gu, "").toLocaleLowerCase("it").trim();
+  if (
+    venue.trim().length >= 3 &&
+    plain(copy.title || "").includes(plain(venue))
+  )
+    problems.push(
+      "title: non ripetere il nome del locale, è già scritto sopra",
+    );
   return problems;
 }
 // Link unfurlers fetch the page when a message is written or received.

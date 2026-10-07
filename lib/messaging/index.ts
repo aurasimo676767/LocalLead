@@ -4,6 +4,7 @@ import { sectorOf } from "../sector";
 import { portalFromText, portalNames } from "../utils";
 import { lodgingLines } from "./lodging";
 import { previewLink } from "../site-preview";
+import { timeGreeting } from "../greeting";
 export type ContactReasonKind =
   | "no_website"
   | "social_only"
@@ -299,7 +300,7 @@ const pick = <T>(pool: T[], variant: number, offset: number) =>
 const greeting = (p: Preferences, variant: number) =>
   p.tone === "neutro"
     ? "Ciao,"
-    : pick(["ciao buongiorno!", "ciao!"], variant, 0);
+    : pick([`ciao ${timeGreeting()}!`, "ciao!"], variant, 0);
 /** Right after the preview link, for who won't open links from a stranger. */
 export const photoOffer =
   "(se non vi fidate ad aprire il link vi mando qualche foto)";

@@ -1,5 +1,6 @@
 import type { Preferences } from "../model";
 import type { Sector } from "../sector";
+import { timeGreeting } from "../greeting";
 import { photoOffer, type OutreachContext, type senderReach } from "./index";
 
 // One instruction source: greetings, format and preferences must never compete.
@@ -36,7 +37,7 @@ export function outreachInstructions(
   return [
     `Scrivi il primo messaggio WhatsApp a ${lodging ? "una struttura" : "un locale"} come lo scriverebbe di getto dal telefono una persona vera e alla mano, non un venditore: tutto in minuscolo tranne i nomi propri, parole semplici, niente tono da agenzia.`,
     `Lunghezza 150–400 caratteri (il link non conta), in 3 righe separate da un a capo, ogni riga al massimo 200 caratteri. Struttura: 1) saluto e cosa hai visto cercandoli su Google, 2) ${previewUrl ? "l'anteprima con il link" : "in una frase cosa faresti per loro"}, 3) chi sei in mezza frase e una domanda leggera.`,
-    'Prima riga: inizia con "ciao buongiorno!" oppure "ciao!" (un solo punto esclamativo in tutto il messaggio) e racconta subito l\'osservazione, dicendo che li hai trovati su Google. Se l\'osservazione viene da Facebook o Instagram, dillo esplicitamente. Non cominciare presentandoti e non usare Ciao come va, salve, gentile, ho analizzato o ho notato che.',
+    `Prima riga: inizia con "ciao ${timeGreeting()}!" oppure "ciao!" (un solo punto esclamativo in tutto il messaggio) e racconta subito l\'osservazione, dicendo che li hai trovati su Google. Se l\'osservazione viene da Facebook o Instagram, dillo esplicitamente. Non cominciare presentandoti e non usare Ciao come va, salve, gentile, ho analizzato o ho notato che.`,
     previewUrl
       ? `Seconda riga: di' con parole tue che per curiosità hai provato a fare un'anteprima di come potrebbe venire il loro sito, poi scrivi "date un'occhiata" seguito da uno spazio e da questo link esatto: ${previewUrl} , e subito dopo il link scrivi tra parentesi, uguale, "${photoOffer}". Il link una sola volta, così com'è, senza emoji prima del link e senza altri link. Non offrire altre demo o lavoro gratuito oltre all'anteprima.`
       : `Seconda riga: di' in una frase cosa faresti, un sito vostro fatto su misura con quello che serve (${lodging ? "foto delle camere, posizione e contatti" : "menu, foto e contatti"}). Non inserire link. ${prefs.free_demo ? "Una demo gratuita è consentita, non obbligatoria." : "Non offrire demo, bozze, prove o lavoro gratuito."}`,

@@ -29,6 +29,7 @@ import { statuses, statusLabels, contactable, type Lead } from "@/lib/model";
 import { hotReasons, scoreParts, worthwhile } from "@/lib/scoring";
 import { detailQueue, sectorHome } from "@/lib/lead-views";
 import { previewLink, previewSummary } from "@/lib/site-preview";
+import { fixGreeting } from "@/lib/greeting";
 import { sectorOf } from "@/lib/sector";
 import { buildOutreachContext, fallbackMessage } from "@/lib/messaging";
 import {
@@ -124,7 +125,8 @@ function Detail({ lead: l, scan }: { lead: Lead; scan?: boolean }) {
     },
     [screenshot],
   );
-  const contactDraft = text.trim();
+  // The greeting follows the time it is sent, not when the draft was written.
+  const contactDraft = fixGreeting(text.trim());
   const blocked = !contactable(l);
   const outreachReady = buildOutreachContext(l, preferences).status === "ready";
   const canWa =
@@ -170,7 +172,7 @@ function Detail({ lead: l, scan }: { lead: Lead; scan?: boolean }) {
       await command("save_message", { text: trimmed }, l.id);
   }
   async function copy() {
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(fixGreeting(text));
     notify("Messaggio copiato");
   }
   return (

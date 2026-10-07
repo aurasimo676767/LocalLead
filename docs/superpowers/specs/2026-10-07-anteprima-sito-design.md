@@ -100,8 +100,9 @@ site_previews(
   nelle 1.000 gratuite al mese, poi circa 0,7 centesimi), con il nome
   dell'autore e "Foto da Google Maps". Non vengono salvate. Senza foto, i
   riquadri mostrano un colore della categoria e "qui vanno le vostre foto".
-- Barra fissa in basso: "Anteprima creata da {nome mittente} · il sito
-  completo a {prezzo} €, una volta sola" e il pulsante **Mi interessa**, che
+- Barra fissa in basso: "Anteprima a solo scopo illustrativo. Il sito vero
+  lo facciamo da zero, su misura, con il design e le animazioni che volete, a
+  {prezzo} € una volta sola" e il pulsante **Mi interessa**, che
   apre WhatsApp verso il numero del mittente con "Ciao {nome mittente}, ho
   visto l'anteprima del sito per {nome locale}". Senza numero nelle
   impostazioni, il pulsante non c'è.

@@ -201,8 +201,9 @@ export function SitePreviewPage({
       </main>
       <footer className={styles.bar}>
         <p>
-          Anteprima creata da <strong>{sender.name || "Simone"}</strong> · il
-          sito completo a <strong>{sender.price} €</strong>, una volta sola
+          <strong>Anteprima a solo scopo illustrativo.</strong> Il sito vero
+          lo facciamo da zero, su misura, con il design e le animazioni che
+          volete, a <strong>{sender.price} €</strong> una volta sola.
         </p>
         {interest && (
           <a

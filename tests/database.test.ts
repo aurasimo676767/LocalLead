@@ -13,6 +13,11 @@ async function asUser(id: string) {
   await db.query("select set_config('request.jwt.claim.sub',$1,false)", [id]);
   await db.exec("set role authenticated");
 }
+async function asAnon() {
+  await db.exec("reset role");
+  await db.query("select set_config('request.jwt.claim.sub','',false)");
+  await db.exec("set role anon");
+}
 async function save(l: Lead, expected: string | null = null) {
   return db.query<{ result: { id: string; duplicate: boolean } }>(
     "select public.save_lead($1::jsonb,$2::text[],$3::timestamptz) as result",
@@ -30,6 +35,12 @@ describe("actual Postgres migration, RLS and atomic dedup", () => {
     );
     await db.exec(
       readFileSync(resolve("supabase/migrations/002_delete_leads.sql"), "utf8"),
+    );
+    await db.exec(
+      readFileSync(
+        resolve("supabase/migrations/003_site_previews.sql"),
+        "utf8",
+      ),
     );
     await db.query(
       "insert into auth.users(id,email) values ($1,'alice@example.com'),($2,'bob@example.com')",
@@ -168,15 +179,140 @@ describe("actual Postgres migration, RLS and atomic dedup", () => {
     );
     // The seed lead has contact history and an opt-out: it must survive.
     expect(deleted.rows[0].ids).toEqual([fresh.id]);
-    expect((await db.query("select id from leads where id=$1", [lead.id])).rows).toHaveLength(1);
-    await db.query("select public.delete_leads($1::uuid[], false)", [[forgotten.id]]);
+    expect(
+      (await db.query("select id from leads where id=$1", [lead.id])).rows,
+    ).toHaveLength(1);
+    await db.query("select public.delete_leads($1::uuid[], false)", [
+      [forgotten.id],
+    ]);
     const keys = (
       await db.query<{ key: string }>("select key from dismissed_keys")
     ).rows.map((row) => row.key);
     expect(keys).toContain("place:place-delete");
     expect(keys).not.toContain("place:place-forget");
     await asUser(bob);
-    expect((await db.query("select * from dismissed_keys")).rows).toHaveLength(0);
+    expect((await db.query("select * from dismissed_keys")).rows).toHaveLength(
+      0,
+    );
     await asUser(alice);
+  });
+  describe("site previews: owner-only table, public read through the secret link", () => {
+    type Preview = {
+      content: { name: string };
+      place_id: string;
+      sender: { name: string; phone: string; price: number };
+      user_id?: string;
+    } | null;
+    const read = async (slug: string, count = true) =>
+      (
+        await db.query<{ p: Preview }>(
+          "select public.site_preview($1,$2) as p",
+          [slug, count],
+        )
+      ).rows[0].p;
+    let shop: Lead;
+    beforeAll(async () => {
+      await asUser(alice);
+      shop = newLead({
+        name: "Pizzeria Anteprima",
+        city: "Vittoria",
+        category: "Pizzeria",
+        place_id: "place-preview",
+        user_id: alice,
+      });
+      await save(shop);
+      await db.query(
+        "update profiles set preferences = preferences || $1::jsonb where id = $2",
+        [
+          JSON.stringify({
+            sender_name: "Simone",
+            sender_phone: "+393331234567",
+            site_price: 200,
+          }),
+          alice,
+        ],
+      );
+      await db.query(
+        "insert into site_previews(slug,lead_id,user_id,content) values ('abcdefghij12',$1,$2,$3::jsonb)",
+        [shop.id, alice, JSON.stringify({ name: "Pizzeria Anteprima" })],
+      );
+    });
+    it("does not count the owner's own visits", async () => {
+      await asUser(alice);
+      expect((await read("abcdefghij12"))?.content.name).toBe(
+        "Pizzeria Anteprima",
+      );
+      const row = await db.query<{ views: number }>(
+        "select views from site_previews where slug='abcdefghij12'",
+      );
+      expect(row.rows[0].views).toBe(0);
+    });
+    it("keeps other users out of the table", async () => {
+      await asUser(bob);
+      expect((await db.query("select * from site_previews")).rows).toHaveLength(
+        0,
+      );
+      await expect(
+        db.query(
+          "insert into site_previews(slug,lead_id,user_id,content) values ('bobbobbobbob',$1,$2,'{}')",
+          [shop.id, bob],
+        ),
+      ).rejects.toThrow();
+      await asUser(alice);
+    });
+    it("lets anyone with the link read public content and counts the visit", async () => {
+      await asAnon();
+      await expect(db.query("select * from site_previews")).rejects.toThrow();
+      const p = await read("abcdefghij12");
+      expect(p).toMatchObject({
+        content: { name: "Pizzeria Anteprima" },
+        place_id: "place-preview",
+        sender: { name: "Simone", phone: "+393331234567", price: 200 },
+      });
+      expect(p?.user_id).toBeUndefined();
+      await read("abcdefghij12", false);
+      expect(await read("nonesistente1")).toBeNull();
+      await asUser(alice);
+      const row = await db.query<{
+        views: number;
+        last_viewed_at: string | null;
+      }>(
+        "select views,last_viewed_at from site_previews where slug='abcdefghij12'",
+      );
+      expect(row.rows[0].views).toBe(1);
+      expect(row.rows[0].last_viewed_at).not.toBeNull();
+    });
+    it("hides expired links and opted-out leads", async () => {
+      await asUser(alice);
+      // The seed lead was opted out by an earlier test.
+      await db.query(
+        "insert into site_previews(slug,lead_id,user_id,content) values ('optedout0001',$1,$2,'{}')",
+        [lead.id, alice],
+      );
+      await db.query(
+        "update site_previews set expires_at = now() - interval '1 day' where slug='abcdefghij12'",
+      );
+      await asAnon();
+      expect(await read("optedout0001")).toBeNull();
+      expect(await read("abcdefghij12")).toBeNull();
+      await asUser(alice);
+    });
+    it("rejects guessable slugs", async () => {
+      await asUser(alice);
+      const other = newLead({
+        name: "Bar Slug",
+        city: "Vittoria",
+        category: "Bar",
+        place_id: "place-slug",
+        user_id: alice,
+      });
+      await save(other);
+      await expect(
+        db.query(
+          "insert into site_previews(slug,lead_id,user_id,content) values ('abc',$1,$2,'{}')",
+          [other.id, alice],
+        ),
+      ).rejects.toThrow();
+    });
   });
 });

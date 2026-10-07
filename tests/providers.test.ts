@@ -295,8 +295,8 @@ describe("provider contracts and conservative enrichment", () => {
       [],
     );
     expect(result.model).toBe("fallback locale");
-    expect(result.text.length).toBeGreaterThanOrEqual(350);
-    expect(result.text.length).toBeLessThanOrEqual(900);
+    expect(result.text.length).toBeGreaterThanOrEqual(150);
+    expect(result.text.length).toBeLessThanOrEqual(450);
   });
   it("searches lodging with its own phrases and keeps only places to stay", async () => {
     mocks.providerJson.mockResolvedValue({
@@ -462,7 +462,7 @@ describe("provider contracts and conservative enrichment", () => {
     expect(mocks.parse).toHaveBeenCalledTimes(1);
     expect(mocks.parse.mock.calls[0][1].timeout).toBeLessThanOrEqual(25_000);
   });
-  it("retries missing QR with feedback and honors only the message model override", async () => {
+  it("retries with the broken rule as feedback and honors only the message model override", async () => {
     vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
     vi.stubEnv("OPENAI_MODEL", "analysis-model-unchanged");
     vi.stubEnv("OPENAI_MESSAGE_MODEL", "message-model-override");
@@ -471,15 +471,15 @@ describe("provider contracts and conservative enrichment", () => {
     const output = {
       message,
       reasonUsed: "no_website",
-      featuresUsed: ["menu", "QR code"],
+      featuresUsed: ["menu", "foto"],
       evidence_ids: ["E1"],
     };
     mocks.parse
       .mockResolvedValueOnce({
         output_parsed: {
           ...output,
-          message: message.replace(/[, ][^,\n]*\bqr\b[^\n]*/i, ""),
-          featuresUsed: ["menu", "foto"],
+          // The venue's name must never appear in the message.
+          message: message.replace(/^ciao/i, "ciao Forno delle Nuvole"),
         },
       })
       .mockResolvedValueOnce({ output_parsed: output });
@@ -492,7 +492,7 @@ describe("provider contracts and conservative enrichment", () => {
     const retry = mocks.parse.mock.calls[1][0];
     expect(
       JSON.parse(retry.input[0].content).validationFeedback.join(" "),
-    ).toContain("QR");
+    ).toContain("nome del locale");
     expect(JSON.parse(retry.input[0].content).recentGeneratedMessages).toEqual([
       "Una bozza precedente diversa",
     ]);
@@ -502,7 +502,7 @@ describe("provider contracts and conservative enrichment", () => {
     vi.stubEnv("OPENAI_API_KEY", "offline-test-key");
     const lead = { ...demoLeads()[0], is_demo: false };
     const text =
-      "Ciao, mi chiamo Simone e abito anche io a Vittoria 🙂\nHo visto il vostro locale su Google e cercando il vostro sito non sono riuscito a trovarlo\nMi occupo di siti per locali della zona. Oggi chi esce la sera cerca tutto dal telefono e se trova subito il menu e qualche foto è molto più facile che scelga voi\nPosso farvi un sito tutto vostro su misura con i vostri colori e il menu e ai tavoli un QR che lo apre direttamente\nVi interesserebbe?";
+      "ciao buongiorno! cercando su google il vostro sito non sono riuscito a trovarlo\nvi farei un sito tutto vostro su misura con il menu e le foto, e ai tavoli un qr che lo apre direttamente\nsono Simone, faccio siti per i locali qui a Vittoria, che ne dite? 🙂";
     lead.analysis.evidence.push({
       id: "unreliable",
       kind: "events",
@@ -527,7 +527,9 @@ describe("provider contracts and conservative enrichment", () => {
     expect(request.input).toHaveLength(1);
     expect(request.input[0].role).toBe("user");
     expect(request.instructions).not.toContain("DEVI iniziare");
-    expect(request.instructions).toContain("Non scrivere mai il nome del locale");
+    expect(request.instructions).toContain(
+      "Non scrivere mai il nome del locale",
+    );
     expect(request.instructions).toContain("Chiudi con una domanda semplice");
     const payload = JSON.parse(request.input[0].content);
     expect(payload.lead.name).toBe(lead.name);
@@ -581,7 +583,7 @@ describe("provider contracts and conservative enrichment", () => {
     const lead = { ...demoLeads()[0], is_demo: false };
     const previous = fallbackMessage(lead, defaultPreferences, 0);
     const different =
-      "Ciao 🙂 mi chiamo Simone e abito anche io a Vittoria\nCercando locali in zona vi ho trovati su Google ma un vostro sito ufficiale non sono riuscito a trovarlo\nCreo siti per bar e ristoranti della zona perché ormai la gente decide dove andare guardando il telefono e un sito curato con menu e foto fa davvero la differenza sulle vendite\nSi potrebbe creare insieme qualcosa di personalizzato come piace a voi con un QR ai tavoli che apre il menu\nChe ne pensate?";
+      "ciao! vi ho trovati su google ma un vostro sito ufficiale non sono riuscito a trovarlo\nsi potrebbe creare qualcosa di personalizzato come piace a voi, con il menu e un qr ai tavoli\nsono Simone, faccio siti per bar e ristoranti qui a Vittoria, vi piace?";
     lead.messages = [
       {
         id: "previous",

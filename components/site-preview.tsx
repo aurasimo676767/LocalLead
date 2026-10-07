@@ -56,7 +56,7 @@ export function SitePreviewPage({
     ["Facebook", safeUrl(c.facebook_url)],
     ["Instagram", safeUrl(c.instagram_url)],
   ].filter(([, url]) => url);
-  const interest = interestUrl(sender.phone, sender.name, c.name);
+  const interest = interestUrl(sender.phone, sender.name);
   const [hero, ...rest] = photos;
   const gallery = rest.slice(0, 4);
   const authors = photos.filter((p) => p.author);
@@ -201,9 +201,9 @@ export function SitePreviewPage({
       </main>
       <footer className={styles.bar}>
         <p>
-          <strong>Anteprima a solo scopo illustrativo.</strong> Il sito vero
-          lo facciamo da zero, su misura, con il design e le animazioni che
-          volete, a <strong>{sender.price} €</strong> una volta sola.
+          <strong>Anteprima a solo scopo illustrativo.</strong> Il sito vero lo
+          facciamo da zero, su misura, con il design e le animazioni che volete,
+          a <strong>{sender.price} €</strong> una volta sola.
         </p>
         {interest && (
           <a

@@ -249,12 +249,15 @@ const bots =
   /^whatsapp\/|facebookexternalhit|facebot|telegrambot|twitterbot|slackbot|discordbot|linkedinbot|skypeuripreview|embedly|vkshare|pinterestbot|googlebot|bingbot|applebot|yandex|bot\/|crawl|spider|headless/i;
 export const isPreviewBot = (userAgent: string) =>
   !userAgent.trim() || bots.test(userAgent);
-/** "Mi interessa": a chat to the sender with the text already written. */
-export function interestUrl(phone: string, senderName: string, venue: string) {
+/**
+ * "Mi interessa": a chat to the sender with a plain text already written. The
+ * venue is not named: the reply comes from its number ("Cerca numero").
+ */
+export function interestUrl(phone: string, senderName: string) {
   const number = normalizePhone(phone);
   if (!number) return "";
   const hello = senderName.trim() ? `Ciao ${senderName.trim()}` : "Ciao";
-  const text = `${hello}, ho visto l'anteprima del sito per ${venue}`;
+  const text = `${hello}, sono interessato al sito`;
   return `https://api.whatsapp.com/send?phone=${number.slice(1)}&text=${encodeURIComponent(text)}`;
 }
 /** "non ancora aperta" or "aperta 3 volte, ultima il 05/10". */

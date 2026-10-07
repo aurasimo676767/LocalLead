@@ -64,26 +64,30 @@ describe("lodging outreach context", () => {
 });
 
 describe("lodging fallback and validation", () => {
-  it.each([0, 1, 2, 3, 4, 5])("variant %i is valid and lodging-specific", (i) => {
-    const text = fallbackMessage(bnb(), defaultPreferences, i);
-    expect(text).not.toBe("");
-    expect(text).not.toMatch(/men[uù]|\bqr\b/i);
-    expect(text).toMatch(/b&b e case vacanza/i);
-    expect(
-      validateOutreachMessage(text, bnb(), defaultPreferences).errors,
-    ).toEqual([]);
-  });
+  it.each([0, 1, 2, 3, 4, 5])(
+    "variant %i is valid and lodging-specific",
+    (i) => {
+      const text = fallbackMessage(bnb(), defaultPreferences, i);
+      expect(text).not.toBe("");
+      expect(text).not.toMatch(/men[uù]|\bqr\b/i);
+      expect(text).toMatch(/b&b e case vacanza/i);
+      expect(
+        validateOutreachMessage(text, bnb(), defaultPreferences).errors,
+      ).toEqual([]);
+    },
+  );
   it("allows direct booking for lodging but never commission figures", () => {
     const base = fallbackMessage(bnb(), defaultPreferences, 0);
+    // The middle line carries the offer in the short format.
     const lines = base.split("\n");
-    lines[2] =
-      "con un sito vostro chi vi trova su google può prenotare direttamente, senza passare dalle commissioni dei portali";
+    lines[1] =
+      "vi farei un sito vostro con le foto delle camere, così chi vi trova su google può prenotare direttamente";
     expect(
       validateOutreachMessage(lines.join("\n"), bnb(), defaultPreferences)
         .errors,
     ).toEqual([]);
-    lines[2] =
-      "con un sito vostro risparmiate le commissioni del 15 per cento dei portali";
+    lines[1] =
+      "vi farei un sito vostro con le foto delle camere, così risparmiate le commissioni del 15 per cento";
     expect(
       validateOutreachMessage(lines.join("\n"), bnb(), defaultPreferences)
         .valid,
@@ -144,7 +148,7 @@ describe("lodging instructions", () => {
     const context = buildOutreachContext(lead, defaultPreferences);
     const text = outreachInstructions(defaultPreferences, 0, context);
     expect(text).toContain("Non proporre prenotazioni online");
-    expect(text).toContain("specialmente per i locali");
+    expect(text).toContain("faccio siti per i locali");
   });
 });
 
@@ -155,10 +159,11 @@ describe("the contact reason must name the platform", () => {
     );
   it("rejects a lodging draft that never names the portal, even with 'subito'", () => {
     const lead = bnb();
-    const text = [0, 1, 2, 3, 4, 5]
-      .map((i) => fallbackMessage(lead, defaultPreferences, i))
-      .find((t) => /subito/i.test(t))!
-      .replace(/Booking/g, "di un portale");
+    // "subito" right after "sito": the everyday word must not count as Subito.it.
+    const lines = fallbackMessage(lead, defaultPreferences, 0).split("\n");
+    lines[0] =
+      "ciao buongiorno! vi ho trovati su google e come sito c'è solo una pagina, si vede subito";
+    const text = lines.join("\n").replace(/Booking/g, "di un portale");
     expect(text).toMatch(/subito/i);
     expect(reasonError(text, lead)).toBe(true);
   });

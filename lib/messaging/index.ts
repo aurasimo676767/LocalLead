@@ -290,53 +290,73 @@ export function senderReach(
 /** "Della zona" and "qui vicino" only with the preference on and a nearby venue. */
 export const localClaims = (l: Lead, p: Preferences) =>
   p.local && !!p.sender_city.trim() && senderReach(l, p).reach !== "far";
-// Written the way the sender writes by hand: greeting, what he does, the doubt
-// spelled out, what would go in the site, then the question.
-export function senderIntro(l: Lead, p: Preferences, variant = 0) {
-  const name = p.sender_name.trim();
-  const city = p.sender_city.trim();
-  const from =
-    !localClaims(l, p) || !city
-      ? ""
-      : senderReach(l, p).reach === "same"
-        ? ` e abito anche io a ${city}`
-        : ` e abito a ${city} qui vicino a voi`;
-  const local = localClaims(l, p) ? " della zona" : "";
-  const target =
-    sectorOf(l.category) === "alloggi"
-      ? [
-          "anche per b&b e case vacanza",
-          "soprattutto per b&b e case vacanza",
-          "per b&b e case vacanza",
-        ]
-      : [
-          "specialmente per i locali",
-          "soprattutto per i locali",
-          "per bar e ristoranti",
-        ];
-  const line = !name
-    ? `ciao buongiorno! mi occupo della realizzazione di siti web fatti su misura, ${target[0]}${local}`
-    : [
-        `ciao buongiorno! mi chiamo ${name}${from}, mi occupo della realizzazione di siti web fatti su misura, ${target[0]}${local}`,
-        `ciao! mi chiamo ${name}${from} e faccio siti web su misura, ${target[1]}${local}`,
-        `ciao buongiorno! mi chiamo ${name}${from}, faccio siti web fatti su misura ${target[2]}${local}`,
-      ][variant % 3];
-  // A neutral tone keeps the same words without the chatty opening.
-  return p.tone === "neutro"
-    ? line.replace(/^ciao buongiorno!|^ciao!/, "Ciao,").replace(/^./, "C")
-    : line;
-}
 // Each line has its own pool. Neighbouring indexes differ on every line, so a
 // regenerated draft reads as a new message rather than a new closing question.
 const pick = <T>(pool: T[], variant: number, offset: number) =>
   pool[(variant + offset) % pool.length];
-// The preview is the concrete thing to look at: it closes the pitch line.
-const withPreview = (pitch: string, l: Lead) => {
+// A first message is three short lines: what was seen, the preview, who is
+// writing. Starting with a self-introduction and a pitch read as a salesman.
+const greeting = (p: Preferences, variant: number) =>
+  p.tone === "neutro"
+    ? "Ciao,"
+    : pick(["ciao buongiorno!", "ciao!"], variant, 0);
+const ownSiteReasons: ContactReasonKind[] = [
+  "broken_website",
+  "poor_website",
+  "sparse_website",
+  "good_socials_bad_web",
+];
+/** The preview line, or the plain offer when there is no preview to show. */
+function offerLine(
+  l: Lead,
+  kind: ContactReasonKind,
+  pitch: string,
+  variant: number,
+) {
   const link = previewLink(l);
-  return link
-    ? `${pitch}, intanto ve l'ho già preparato in anteprima, date un'occhiata ${link}`
-    : pitch;
-};
+  if (!link) return pitch;
+  const lead = ownSiteReasons.includes(kind)
+    ? pick(
+        [
+          "per curiosità ho provato a rifarlo in anteprima più curato",
+          "ho provato a fare un'anteprima di come potrebbe venire più curato",
+          "intanto ve l'ho già sistemato in anteprima",
+        ],
+        variant,
+        1,
+      )
+    : pick(
+        [
+          "per curiosità ho provato a fare un'anteprima di come potrebbe venire",
+          "così ho provato a prepararvi un'anteprima di come verrebbe un sito vostro",
+          "intanto ve l'ho già preparato in anteprima",
+        ],
+        variant,
+        1,
+      );
+  return `${lead}, date un'occhiata ${link}`;
+}
+/** Who is writing, in half a line, then a light question: never a pitch. */
+export function senderLine(l: Lead, p: Preferences, variant = 0) {
+  const name = p.sender_name.trim();
+  const city = p.sender_city.trim();
+  const where =
+    !localClaims(l, p) || !city
+      ? ""
+      : senderReach(l, p).reach === "same"
+        ? ` qui a ${city}`
+        : " della zona";
+  const what =
+    sectorOf(l.category) === "alloggi"
+      ? "faccio siti anche per b&b e case vacanza"
+      : "faccio siti per i locali";
+  const cta = pick(
+    ["che ne dite?", "vi piace?", "che ne pensate?", "vi interesserebbe?"],
+    variant,
+    3,
+  );
+  return `${name ? `sono ${name}, ` : ""}${what}${where}, ${cta}${variant % 2 ? " 🙂" : ""}`;
+}
 export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
   if (!contactable(l)) return "";
   const context = buildOutreachContext(l, p);
@@ -350,15 +370,12 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
     );
     return lines
       ? [
-          senderIntro(l, p, variant),
-          lines.observation,
-          lines.why,
-          withPreview(lines.pitch, l),
-          lines.cta,
+          `${greeting(p, variant)} ${lines.observation}`,
+          offerLine(l, context.reasonKind, lines.pitch, variant),
+          senderLine(l, p, variant),
         ].join("\n")
       : "";
   }
-  const isProduct = productCategories.includes(l.category);
   const menu = ["Pub", "Cocktail bar"].includes(l.category)
     ? "menu drink"
     : l.category === "Panificio"
@@ -423,7 +440,7 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
       pitches: [
         `ve lo rifarei su misura con i vostri colori, tenendo ${theMenu} e le informazioni che avete già`,
         `si potrebbe sistemare grafica e menu come piace a voi, senza stravolgere tutto`,
-        `lo renderei più curato e comodo dal telefono, con ${photos} messe come si deve`,
+        `ve lo rifarei più curato e comodo dal telefono, con ${photos} messe come si deve`,
       ],
     },
     sparse_website: {
@@ -471,7 +488,7 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
       pitches: [
         `rifarei il sito su misura con lo stesso stile delle vostre foto e una parte dedicata a ${theMenu}`,
         "si potrebbe fare qualcosa di molto più curato e come piace a voi, in linea con la pagina",
-        `lo renderei coerente con la pagina, con i vostri colori, ${photos} e ${theMenu}`,
+        `ve lo rifarei coerente con la pagina, con i vostri colori, ${photos} e ${theMenu}`,
       ],
     },
     events_no_website: {
@@ -489,49 +506,15 @@ export function fallbackMessage(l: Lead, p: Preferences, index = 0) {
   };
   const selected =
     copy[context.reasonKind as Exclude<ContactReasonKind, "portal_only">];
-  // Why a site matters, in plain words and without promising numbers.
-  const why = pick(
-    [
-      `oggi quasi tutti prima di uscire guardano tutto dal telefono, e se trovano subito ${theMenu} e le foto è molto più facile che scelgano voi`,
-      `la gente ormai decide dove andare guardando il telefono, e un sito curato con ${theMenu} e le foto fa davvero la differenza anche sulle vendite`,
-      `chi vi cerca dal telefono vuole vedere subito ${theMenu} e qualche foto, e quando li trova è molto più propenso a passare da voi`,
-      `secondo me oggi un sito curato con ${theMenu} e ${photos} aiuta tantissimo le vendite, perché la gente sceglie dal telefono`,
-      `ormai funziona così, prima di uscire si guarda dal telefono e chi trova subito ${theMenu} in un sito curato ha molta più voglia di venire da voi`,
-    ],
-    variant,
-    1,
-  );
-  let pitch = pick(selected.pitches, variant, 2);
-  if (p.qr && !isProduct && !/qr/i.test(pitch))
-    pitch += pick(
-      [
-        ", e ai tavoli si può mettere un qr che apre direttamente il menu",
-        " e magari ai tavoli un qr che apre subito il menu",
-        ", con anche un qr per i tavoli che porta dritto al menu",
-      ],
-      variant,
-      0,
-    );
-  // "crearne uno" only fits a venue that has no site at all.
-  const cta = pick(
-    [
-      ["no_website", "social_only"].includes(context.reasonKind)
-        ? "vi potrebbe interessare crearne uno apposta?"
-        : "vi potrebbe interessare?",
-      "vi interesserebbe?",
-      "che ne pensate?",
-      "vi potrebbe interessare una cosa del genere?",
-      "potrebbe interessarvi?",
-    ],
-    variant,
-    3,
-  );
   return [
-    senderIntro(l, p, variant),
-    pick(selected.observations, variant, 0),
-    why,
-    withPreview(pitch, l),
-    cta,
+    `${greeting(p, variant)} ${pick(selected.observations, variant, 0)}`,
+    offerLine(
+      l,
+      context.reasonKind,
+      pick(selected.pitches, variant, 2),
+      variant,
+    ),
+    senderLine(l, p, variant),
   ].join("\n");
 }
 const reasonPatterns: Record<ContactReasonKind, RegExp> = {
@@ -653,27 +636,28 @@ export function messageProblems(
   );
   // Lengths ignore the link: it is not the message's own words.
   const lines = trimmed.split(/\n/).filter((line) => line.trim());
+  // Short like a message between people: a long pitch reads as a salesman.
   fail(
-    lines.length < 3 || lines.length > 7,
-    "Scrivi 4 o 5 righe separate da un a capo",
+    lines.length < 2 || lines.length > 4,
+    "Scrivi 3 righe brevi separate da un a capo",
   );
   fail(
-    lines.some((line) => line.length > 300),
-    "Righe troppo lunghe: spezzale con un a capo",
+    lines.some((line) => line.length > 220),
+    "Righe troppo lunghe: accorciale",
   );
   fail(
-    trimmed.length < 280 || trimmed.length > 950,
-    "Lunghezza fuori misura: circa 400–750 caratteri",
+    trimmed.length < 150 || trimmed.length > 450,
+    "Lunghezza fuori misura: circa 200–350 caratteri",
   );
-  // A short personal introduction: first name only, never a company pitch.
+  // Who is writing, in half a sentence anywhere: first name only.
   const name = prefs.sender_name.trim();
   fail(
     !!name &&
       !new RegExp(
         `(?:mi chiamo|sono) ${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
         "i",
-      ).test(lines.slice(0, 2).join(" ")),
-    `Presentati all'inizio con "mi chiamo ${name}"`,
+      ).test(trimmed),
+    `Di' chi sei in mezza frase, es. "sono ${name}"`,
   );
   fail(!/google/i.test(trimmed), "Di' che hai cercato il locale su Google");
   // Why a site helps is asked in the prompt but not matched on wording:
@@ -681,12 +665,6 @@ export function messageProblems(
   fail(
     /\d+\s?%|raddoppi|triplic|garantit/i.test(trimmed),
     "Non promettere numeri o risultati garantiti",
-  );
-  fail(
-    !/come (?:lo |la |li )?(?:volete|preferite)|come piace a voi|su misura|personalizzat|vostri colori|vostro stile/i.test(
-      trimmed,
-    ),
-    "Di' che il sito è fatto su misura per loro",
   );
   // Self-editing the menu is not part of the offer.
   fail(
@@ -713,7 +691,7 @@ export function messageProblems(
   );
   // Light, casual punctuation: a few commas, at most two full stops inside.
   fail(
-    (trimmed.match(/,/g) || []).length > 10 ||
+    (trimmed.match(/,/g) || []).length > 8 ||
       (trimmed.match(/\.(?!\s*$)/gm) || []).length > 2,
     "Troppa punteggiatura: meno virgole e punti",
   );
@@ -778,10 +756,12 @@ export function messageProblems(
     !facts.ads && /pubblicità|annunci pubblicitari/i.test(text),
     "Non citare pubblicità",
   );
+  // The preview is the concrete proposal; without it, name what you would do.
   fail(
-    !/(menu|drink list|prodotti|foto|contatti|qr|modern|curat|contenut|grafica|navigazione|telefono|informazioni|eventi|serate|prossime date|sistem|rifar)/i.test(
-      trimmed,
-    ),
+    !link &&
+      !/(menu|drink list|prodotti|foto|contatti|qr|modern|curat|contenut|grafica|navigazione|telefono|informazioni|eventi|serate|prossime date|sistem|rifar|camer)/i.test(
+        trimmed,
+      ),
     "Proponi qualcosa di concreto: menu, foto, contatti o grafica",
   );
   return problems;

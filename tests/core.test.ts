@@ -201,14 +201,15 @@ describe("messages and contacts", () => {
             expect(text).not.toMatch(
               /ho visto (?:il vostro menu|le foto)|guardando.*profilo/,
             );
-            expect(text.split("\n")).toHaveLength(5);
-            expect(text).toMatch(/mi chiamo Simone/);
+            // Short first message: what was seen, the offer, who is writing.
+            expect(text.split("\n")).toHaveLength(3);
+            expect(text).toMatch(/sono Simone/);
             expect(text).toMatch(/google/i);
             expect(text).not.toMatch(/aggiornabil|da soli|in autonomia/);
-            expect(text.match(/,/g)?.length || 0).toBeLessThanOrEqual(10);
+            expect(text.match(/,/g)?.length || 0).toBeLessThanOrEqual(8);
             expect(text).not.toMatch(/[;:]/);
             expect(text).toMatch(
-              /(vi interesserebbe|potrebbe interessarvi|che ne pensate|può interessarvi|vi potrebbe interessare[^?]*)\?$/i,
+              /(che ne dite|vi piace|che ne pensate|vi interesserebbe)\?(?: 🙂)?$/i,
             );
           }
         }
@@ -391,7 +392,7 @@ describe("messages and contacts", () => {
     ]) {
       expect(
         messageAllowed(
-          valid.replace(/^ho visto che[^\n]+/m, phrase),
+          valid.replace(/ho visto che[^\n]+/, phrase),
           lead,
           defaultPreferences,
         ),
@@ -481,10 +482,12 @@ describe("messages and contacts", () => {
     expect(fallbackMessage(demoLeads()[3], defaultPreferences)).not.toMatch(
       /QR/,
     ));
-  it("includes menu and QR in a food venue site pitch when enabled", () => {
+  it("keeps the menu in a food venue pitch without forcing a QR into it", () => {
+    // The short message no longer lists features: the preview shows them.
     const text = fallbackMessage(demoLeads()[1], defaultPreferences);
     expect(text).toMatch(/menu/i);
-    expect(text).toMatch(/QR/i);
+    expect(text.split("\n")).toHaveLength(3);
+    expect(messageAllowed(text, demoLeads()[1], defaultPreferences)).toBe(true);
   });
   it("validates disabled event and demo preferences", () =>
     expect(

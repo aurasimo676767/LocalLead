@@ -103,7 +103,7 @@ site_previews(
 - Barra fissa in basso: "Anteprima a solo scopo illustrativo. Il sito vero
   lo facciamo da zero, su misura, con il design e le animazioni che volete, a
   {prezzo} € una volta sola" e il pulsante **Mi interessa**, che
-  apre WhatsApp verso il numero del mittente con "Ciao {nome mittente}, ho
+  apre WhatsApp verso il numero del mittente con "Ciao {nome mittente}, sono interessato al sito" (era: "Ciao {nome mittente}, ho
   visto l'anteprima del sito per {nome locale}". Senza numero nelle
   impostazioni, il pulsante non c'è.
 - Visite: non si contano quelle dei bot (WhatsApp, Facebook, Telegram e altri

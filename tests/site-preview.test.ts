@@ -121,12 +121,12 @@ describe("visitors", () => {
       ),
     ).toBe(false));
   it("opens WhatsApp to the sender with a ready text", () => {
-    const url = interestUrl("+393331234567", "Simone", "Pizzeria X");
+    const url = interestUrl("+393331234567", "Simone");
     expect(url).toContain("api.whatsapp.com/send?phone=393331234567");
     expect(decodeURIComponent(url)).toContain(
-      "Ciao Simone, ho visto l'anteprima del sito per Pizzeria X",
+      "Ciao Simone, sono interessato al sito",
     );
-    expect(interestUrl("", "Simone", "Pizzeria X")).toBe("");
+    expect(interestUrl("", "Simone")).toBe("");
   });
 });
 

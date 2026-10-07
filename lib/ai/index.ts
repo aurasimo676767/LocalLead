@@ -302,7 +302,7 @@ export async function generateOutreachMessage(
       feedback = validation.errors;
       if (
         parsed.reasonUsed !== context.reasonKind ||
-        !parsed.featuresUsed.length ||
+        // The short message may name no feature at all: the preview shows them.
         parsed.featuresUsed.length > 3 ||
         parsed.featuresUsed.some(
           (feature) => !payload.lead.recommendedFeatures.includes(feature),

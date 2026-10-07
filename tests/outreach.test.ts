@@ -8,20 +8,27 @@ import {
 } from "../lib/messaging/validation";
 
 describe("outreach final validation", () => {
-  it("rejects generic copy, missing menu, missing QR and CTA-only regeneration", () => {
+  it("rejects generic copy and CTA-only regeneration, without forcing menu or QR", () => {
     const lead = demoLeads()[0];
     const good = fallbackMessage(lead, defaultPreferences);
     expect(validateOutreachMessage(good, lead, defaultPreferences).valid).toBe(
       true,
     );
-    for (const text of [
-      "ciao, mi occupo di siti per locali della zona e posso farvene uno con prodotti foto e contatti\nvi interesserebbe?",
-      good.replace(/menu/gi, "prodotti"),
-      good.replace(/[, ][^,\n]*\bqr\b[^\n]*/i, ""),
-    ])
-      expect(
-        validateOutreachMessage(text, lead, defaultPreferences).valid,
-      ).toBe(false);
+    expect(
+      validateOutreachMessage(
+        "ciao, mi occupo di siti per locali della zona e posso farvene uno con prodotti foto e contatti\nvi interesserebbe?",
+        lead,
+        defaultPreferences,
+      ).valid,
+    ).toBe(false);
+    // The short message no longer has to name the menu: the preview shows it.
+    expect(
+      validateOutreachMessage(
+        good.replace(/il menu e /gi, ""),
+        lead,
+        defaultPreferences,
+      ).errors,
+    ).not.toContain("Manca il menu");
     expect(
       validateOutreachMessage(
         good.replace(/Vi interesserebbe\?/, "Che ne pensate?"),
@@ -92,16 +99,16 @@ describe("sender distance", () => {
       );
     }
     const claimed = fallbackMessage(ready, home).replace(
-      /mi chiamo Simone[^\n]*/,
-      "mi chiamo Simone e abito a Vittoria qui vicino a voi",
+      /sono Simone[^\n]*/,
+      "sono Simone e abito a Vittoria qui vicino a voi, faccio siti per i locali, che ne dite?",
     );
     expect(validateOutreachMessage(claimed, livorno, home).valid).toBe(false);
   });
   it("keeps the local wording for the same town and nearby towns", () => {
-    expect(fallbackMessage(ready, home)).toMatch(/abito anche io a Vittoria/);
+    expect(fallbackMessage(ready, home)).toMatch(/qui a Vittoria/);
     const comiso = at("Comiso", 36.949, 14.607);
     expect(senderReach(comiso, home).reach).toBe("near");
-    expect(fallbackMessage(comiso, home, 1)).toMatch(/abito a Vittoria/);
+    expect(fallbackMessage(comiso, home, 1)).toMatch(/della zona/);
   });
   it("treats another town as far when either position is unknown", () => {
     expect(senderReach(at("Comiso", null, null), home).reach).toBe("far");

@@ -69,13 +69,9 @@ export function validateOutreachMessage(
   prefs: Preferences,
   comparisons: string[] = [],
 ) {
-  const payload = buildMessagePayload(lead, prefs, [], "").lead;
   const errors: string[] = [];
   errors.push(...messageProblems(text, lead, prefs));
-  if (payload.menuRelevant && !/men[uù]/i.test(text))
-    errors.push("Manca il menu");
-  if (payload.qrRelevant && !/\bqr\b/i.test(text))
-    errors.push("Includi naturalmente il QR diretto al menu");
+  // Menu and QR are no longer required: the preview shows them, the message stays short.
   const features = [
     /men[uù]|drink list/i,
     /\bqr\b/i,
@@ -94,6 +90,8 @@ export function validateOutreachMessage(
   )
     errors.push("Frase o punteggiatura vietata");
   if (
+    // The preview link is the concrete offer; without it, say what you would do.
+    !previewLink(lead) &&
     // A concrete offer can be phrased with many verbs, not only "potrei".
     !/potrei|potreste|posso|possiamo|si potrebbe|si può|propon|rifar|sistemar|cre(?:are|o|iamo)|costru|realizz|prepar|impost|mett|studi|far(?:vi|vene|ei|lo|glielo)|avere|averne|lo faccio|ve lo|metterei|magari con|sito[^\n]{0,40}\bcon (?:il|le|i|un|una|la)\b/i.test(
       text,

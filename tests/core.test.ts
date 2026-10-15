@@ -540,8 +540,9 @@ describe("messages and contacts", () => {
       phone: "3331234567",
       whatsapp_confidence: "uncertain" as const,
     };
-    expect(whatsappCheckUrl(l, "ciao")).toContain(
-      "api.whatsapp.com/send?phone=393331234567",
+    // The app opens directly, not WhatsApp Web.
+    expect(whatsappCheckUrl(l, "ciao")).toMatch(
+      /^whatsapp:\/\/send\?phone=393331234567&/,
     );
     // Emoji travel as UTF-8 percent escapes, never as a replacement character.
     expect(whatsappCheckUrl(l, "ciao 🙂")).toContain(

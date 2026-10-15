@@ -2478,3 +2478,19 @@ summary {
 .job-banner .icon-btn {
   margin-left: auto;
 }
+.chat-session-list {
+  list-style: none;
+  padding: 0;
+  margin: 18px 0 0;
+  display: grid;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.chat-session-list label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}

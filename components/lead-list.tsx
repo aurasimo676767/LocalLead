@@ -8,11 +8,13 @@ import {
   Trash2,
   SlidersHorizontal,
   Sparkles,
+  MessageCircle,
   X,
 } from "lucide-react";
 import { useWorkspace, useTask } from "./workspace";
 import { useJobs } from "./jobs";
 import { useOverlay } from "./use-overlay";
+import { ChatSession } from "./chat-session";
 import { PageHeading, LeadTable, Field, ErrorText } from "./ui";
 import {
   statuses,
@@ -24,6 +26,7 @@ import {
 import { needsDraft, pageLeads, type ListMode } from "@/lib/lead-views";
 import { sectorCategories, type Sector } from "@/lib/sector";
 import { fitsFilter } from "@/lib/scoring";
+import { chatQueue } from "@/lib/send-session";
 const cityKey = (city: string) => city.trim().toLocaleLowerCase("it");
 export function LeadList({
   mode = "all",
@@ -51,6 +54,7 @@ export function LeadList({
   const [sort, setSort] = useState("score");
   const [more, setMore] = useState(false);
   const [confirm, setConfirm] = useState<Lead[] | null>(null);
+  const [session, setSession] = useState(false);
   // What belongs on this page, before any filter the user picks.
   const inMode = pageLeads(leads, mode, sector, contact === "yes");
   const cities = [
@@ -100,6 +104,8 @@ export function LeadList({
   const removable = inCity.filter(deletable);
   // Leads whose draft is still missing: writing them in one go saves a click each.
   const pending = inCity.filter((l) => needsDraft(l, preferences));
+  // Drafted, never contacted, with a mobile: ready to open in WhatsApp.
+  const chats = chatQueue(filtered, Infinity).length;
   const withoutSite = inCity.filter((l) => fitsFilter(l, "none")).length;
   const extraFilters =
     [category, status, channel, contact].filter(Boolean).length +
@@ -198,6 +204,14 @@ export function LeadList({
                 {draftsQueued
                   ? "Bozze in preparazione…"
                   : `Prepara ${pending.length} bozze`}
+              </button>
+            )}
+            {chats > 0 && (
+              <button
+                className="button whatsapp"
+                onClick={() => setSession(true)}
+              >
+                <MessageCircle size={16} /> Prepara chat WhatsApp ({chats})
               </button>
             )}
             {removable.length > 0 && (
@@ -335,6 +349,9 @@ export function LeadList({
         </div>
       ) : (
         <LeadTable leads={filtered} />
+      )}
+      {session && (
+        <ChatSession leads={filtered} onClose={() => setSession(false)} />
       )}
       {confirm && (
         <DeleteDialog

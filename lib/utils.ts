@@ -147,9 +147,10 @@ export function duplicate(lead: Lead, existing: Lead[]) {
   }
   return undefined;
 }
-// The wa.me redirect can mangle emoji into "�" in the chat box.
+// Straight into the WhatsApp app (phone or desktop), never WhatsApp Web. The
+// wa.me redirect can also mangle emoji into "�" in the chat box.
 const chatUrl = (number: string, message: string) =>
-  `https://api.whatsapp.com/send?phone=${number.slice(1)}&text=${encodeURIComponent(message)}`;
+  `whatsapp://send?phone=${number.slice(1)}&text=${encodeURIComponent(message)}`;
 export function whatsappUrl(lead: Lead, message: string) {
   const number = normalizePhone(lead.phone);
   if (

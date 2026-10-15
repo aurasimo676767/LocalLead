@@ -930,8 +930,6 @@ function Detail({ lead: l, scan }: { lead: Lead; scan?: boolean }) {
                     ? whatsappCheckUrl(l, contactDraft)
                     : whatsappUrl(l, contactDraft)
                 }
-                target="_blank"
-                rel="noopener noreferrer"
                 onClick={() => {
                   setConfirm(false);
                   void task.run(saveDraft);

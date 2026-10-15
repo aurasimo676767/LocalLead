@@ -18,6 +18,7 @@
   "dependencies": {
     "@supabase/ssr": "latest",
     "@supabase/supabase-js": "latest",
+    "@vercel/analytics": "latest",
     "cheerio": "latest",
     "ipaddr.js": "latest",
     "libphonenumber-js": "latest",

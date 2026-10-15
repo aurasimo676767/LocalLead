@@ -65,6 +65,28 @@ export const needsDraft = (lead: Lead, prefs: Preferences) =>
   !lead.messages.length &&
   buildOutreachContext(lead, prefs).status === "ready";
 /**
+ * Found by a search but never analysed: its score is not known yet, which is
+ * not the same as zero. Leads added by hand or from a CSV do not count.
+ */
+export const awaitingAnalysis = (lead: Lead) =>
+  !lead.analysis.analyzed_at &&
+  lead.sources.some((s) => s.source_type === "google_places");
+/**
+ * Searched leads left unanalysed when a search stopped halfway (tab closed,
+ * phone put the page to sleep, a failed step): picked up again, once each.
+ */
+export const resumeIds = (leads: Lead[], tried: Set<string>) =>
+  leads
+    .filter(
+      (l) =>
+        awaitingAnalysis(l) &&
+        !tried.has(l.id) &&
+        !l.is_demo &&
+        !l.do_not_contact &&
+        !contacted(l),
+    )
+    .map((l) => l.id);
+/**
  * Nothing to write about: no verified reason for a draft, or a zero score
  * (closed, excellent site, out of target). Searches drop these straight away.
  * A lead with contact history or an opt-out is never dropped.

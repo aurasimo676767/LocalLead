@@ -63,7 +63,7 @@ export function PhoneLookup() {
           return (
             <article className="panel phone-result" key={l.id}>
               <div className="phone-result-head">
-                <Score value={l.lead_score} />
+                <Score lead={l} />
                 <div>
                   <h2>
                     <Link href={`/leads/${l.id}`}>{l.name}</Link>

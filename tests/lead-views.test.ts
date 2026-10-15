@@ -134,3 +134,40 @@ describe("leads not worth keeping after analysis", () => {
     ).toBe(false);
   });
 });
+
+import { awaitingAnalysis, resumeIds } from "@/lib/lead-views";
+describe("searched leads whose analysis never ran", () => {
+  const found = (name: string, extra: Partial<Lead> = {}) =>
+    mk(name, "Bar", {
+      sources: [
+        {
+          id: "s",
+          source_type: "google_places",
+          url: "",
+          confidence: 0.9,
+          metadata_json: {},
+          created_at: "",
+        },
+      ],
+      ...extra,
+    });
+  const done = { ...newLead({ name: "x", city: "x", category: "Bar" }).analysis, analyzed_at: "2026-10-15T08:00:00Z" };
+  it("are waiting for analysis, not scored zero", () => {
+    expect(awaitingAnalysis(found("Bar Nuovo"))).toBe(true);
+    expect(awaitingAnalysis(found("Bar Fatto", { analysis: done }))).toBe(false);
+    // Added by hand or by CSV: never searched, never analysed automatically.
+    expect(awaitingAnalysis(mk("Bar Manuale", "Bar"))).toBe(false);
+  });
+  it("are picked up again, once each, never if contacted or opted out", () => {
+    const leads = [
+      found("Uno"),
+      found("Due", { analysis: done }),
+      found("Tre", { status: "contacted" }),
+      found("Quattro", { do_not_contact: true }),
+      found("Cinque", { is_demo: true }),
+      found("Sei"),
+    ];
+    const tried = new Set([leads[5].id]);
+    expect(resumeIds(leads, tried)).toEqual([leads[0].id]);
+  });
+});

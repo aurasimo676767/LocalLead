@@ -9,13 +9,25 @@ import {
 } from "lucide-react";
 import { type Lead, statusLabels } from "@/lib/model";
 import { hotReasons } from "@/lib/scoring";
+import { awaitingAnalysis } from "@/lib/lead-views";
 export function Score({
-  value,
+  lead,
   large = false,
 }: {
-  value: number;
+  lead: Lead;
   large?: boolean;
 }) {
+  const value = lead.lead_score;
+  // Not analysed yet: the score is unknown, not zero.
+  if (awaitingAnalysis(lead))
+    return (
+      <span
+        className={`score ${large ? "large" : ""} low`}
+        title="Non ancora analizzato"
+      >
+        …<small>/100</small>
+      </span>
+    );
   return (
     <span
       className={`score ${large ? "large" : ""} ${value >= 80 ? "hot" : value >= 60 ? "warm" : value >= 40 ? "neutral" : "low"}`}
@@ -57,7 +69,7 @@ export function PageHeading({
 export function LeadRow({ lead }: { lead: Lead }) {
   return (
     <article className="lead-row">
-      <Score value={lead.lead_score} />
+      <Score lead={lead} />
       <div className="lead-row-main">
         <Link href={`/leads/${lead.id}`}>
           <h3>{lead.name}</h3>
@@ -124,7 +136,7 @@ export function LeadTable({ leads }: { leads: Lead[] }) {
                 </small>
               </td>
               <td data-label="Score">
-                <Score value={l.lead_score} />
+                <Score lead={l} />
               </td>
               <td data-label="Opportunità" className="opportunity-cell">
                 {l.main_problem}

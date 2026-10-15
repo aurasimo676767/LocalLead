@@ -9,8 +9,8 @@ import {
 } from "react";
 import { useWorkspace } from "./workspace";
 import type { Lead } from "@/lib/model";
-import type { Sector } from "@/lib/sector";
-import { needsDraft, shouldDiscard } from "@/lib/lead-views";
+import { sectorOf, type Sector } from "@/lib/sector";
+import { needsDraft, resumeIds, shouldDiscard } from "@/lib/lead-views";
 import { retry, runEach, type StepFailure } from "@/lib/job-runner";
 
 export type SearchInput = {
@@ -55,9 +55,11 @@ const JobsContext = createContext<Context | null>(null);
  * asks first.
  */
 export function JobsProvider({ children }: { children: React.ReactNode }) {
-  const { command, leads, preferences } = useWorkspace();
+  const { command, leads, preferences, loading } = useWorkspace();
   const [jobs, setJobs] = useState<Job[]>([]);
   const running = useRef(false);
+  // Leads a job already took in hand this session: never picked up twice.
+  const tried = useRef(new Set<string>());
   // The runner reads the latest data, not the values of the render that started it.
   const live = useRef({ command, leads, preferences });
   useEffect(() => {
@@ -95,6 +97,7 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
         const failures = await runEach(
           ids,
           async (id) => {
+            tried.current.add(id);
             if (job.kind === "search") {
               update(job.id, () => ({ current: `analisi di ${name(id)}` }));
               const analyzed = await live.current.command(
@@ -190,6 +193,27 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
         error: "",
       },
     ]);
+  // A search stopped halfway (tab closed, phone put the page to sleep) leaves
+  // leads never analysed: with nothing else running, finish them, per sector.
+  useEffect(() => {
+    if (loading || busy) return;
+    const ids = resumeIds(leads, tried.current);
+    if (!ids.length) return;
+    ids.forEach((id) => tried.current.add(id));
+    for (const sector of ["locali", "alloggi"] as const) {
+      const mine = ids.filter(
+        (id) => sectorOf(leads.find((l) => l.id === id)!.category) === sector,
+      );
+      if (mine.length)
+        add({
+          kind: "search",
+          sector,
+          label: "interrotta, ripresa ora",
+          leadIds: mine,
+          draftIds: mine,
+        });
+    }
+  });
   const value: Context = {
     jobs,
     active:

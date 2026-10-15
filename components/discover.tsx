@@ -250,7 +250,7 @@ export function Discover({ sector = "locali" }: { sector?: Sector }) {
           </div>
           {visible?.map((r) => (
             <div className="discovery-row" key={r.lead.id}>
-              <Score value={r.lead.lead_score} />
+              <Score lead={r.lead} />
               <div>
                 <Link
                   href={`/leads/${r.lead.id}?scan=1`}

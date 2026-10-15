@@ -218,7 +218,7 @@ function Detail({ lead: l, scan }: { lead: Lead; scan?: boolean }) {
         </div>
       </div>
       <header className="lead-hero">
-        <Score value={l.lead_score} large />
+        <Score lead={l} large />
         <div>
           <h1>{l.name}</h1>
           <p>

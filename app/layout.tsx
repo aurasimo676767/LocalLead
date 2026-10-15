@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
 const sans = Schibsted_Grotesk({
@@ -15,7 +16,17 @@ export const metadata: Metadata = {
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="it" className={sans.variable} suppressHydrationWarning>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Vercel Web Analytics: cookieless, served by Vercel itself, so no
+            extra dependency. Only on Vercel, where the route exists. */}
+        {process.env.VERCEL === "1" && (
+          <Script
+            src="/_vercel/insights/script.js"
+            strategy="afterInteractive"
+          />
+        )}
+      </body>
     </html>
   );
 }
